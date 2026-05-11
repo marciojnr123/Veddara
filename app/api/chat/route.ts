@@ -9,18 +9,12 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const TOOLS: Anthropic.Tool[] = [
   {
     name: 'executar_query',
-    description: 'Executa uma query SELECT no banco Sybase IQ (pref_aruja_sp) e retorna colunas, linhas e contagem. Apenas SELECT é permitido. Use sempre a sintaxe correta do Sybase IQ.',
+    description: 'Executa uma query SELECT no Sybase IQ. Use APENAS para buscar dados — nunca para explorar metadados do banco.',
     input_schema: {
       type: 'object',
       properties: {
-        sql: {
-          type: 'string',
-          description: 'Query SELECT completa e válida para Sybase IQ',
-        },
-        limit: {
-          type: 'number',
-          description: 'Máximo de linhas (padrão 100, máximo 500)',
-        },
+        sql: { type: 'string', description: 'Query SELECT válida para Sybase IQ' },
+        limit: { type: 'number', description: 'Máximo de linhas (padrão 200)' },
       },
       required: ['sql'],
     },
@@ -28,55 +22,53 @@ const TOOLS: Anthropic.Tool[] = [
 ]
 
 function buildSystemPrompt(schemaContext: string): string {
-  return `Você é um especialista em análise de dados da Prefeitura de Arujá (SP), com acesso direto ao banco Sybase IQ (schema: pref_aruja_sp, banco: IQHML).
+  return `Você é um analista de dados sênior da Prefeitura de Arujá (SP).
+Seu trabalho é RESPONDER PERGUNTAS DE NEGÓCIO com dados reais do banco Sybase IQ.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-REGRAS OBRIGATÓRIAS — SYBASE IQ
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. LIMITE de linhas: use TOP N logo após SELECT. NUNCA use LIMIT.
-   ✓ SELECT TOP 100 col FROM tabela
-   ✗ SELECT col FROM tabela LIMIT 100
+══════════════════════════════════════════
+PROIBIDO — NUNCA FAÇA ISSO:
+══════════════════════════════════════════
+✗ Consultar SYS.SYSTAB, SYS.SYSTABCOL, INFORMATION_SCHEMA ou qualquer tabela de metadados
+✗ Rodar queries de "exploração" para descobrir tabelas ou colunas
+✗ Fazer mais de 3 queries por resposta
+✗ Responder sem interpretar os dados (não liste só os resultados — analise)
+✗ Usar LIMIT (Sybase IQ usa TOP N)
+✗ Usar UPPER() ou LOWER() para comparar strings
+✗ Consultar tabelas sem o prefixo pref_aruja_sp.
 
-2. CASE SENSITIVE: Sybase IQ diferencia maiúsculas/minúsculas em dados.
-   - Nomes de colunas e tabelas: use EXATAMENTE como estão no schema abaixo.
-   - NUNCA use UPPER() ou LOWER() para comparação de strings — use o valor exato.
-   - Para buscas case-insensitive use: col LIKE '%valor%' (funciona case-insensitive para LIKE)
+══════════════════════════════════════════
+VOCÊ JÁ SABE TUDO SOBRE O BANCO:
+══════════════════════════════════════════
+O schema completo está listado abaixo. Leia-o, identifique as tabelas certas e execute a query diretamente.
+NÃO faça queries para descobrir o schema — ele está aqui.
 
-3. PREFIXO obrigatório em toda tabela: pref_aruja_sp.NOME_TABELA
+══════════════════════════════════════════
+SINTAXE OBRIGATÓRIA — SYBASE IQ:
+══════════════════════════════════════════
+• TOP N:        SELECT TOP 20 col FROM pref_aruja_sp.TABELA  (nunca LIMIT)
+• Datas:        YEAR(col), MONTH(col), DATEFORMAT(col,'yyyy-mm-dd')
+• Cast:         CONVERT(NUMERIC,col) ou CAST(col AS NUMERIC)
+• Nulos:        ISNULL(col, 0)
+• Concatenar:   col1 || ' ' || col2
+• Sem GROUP_CONCAT: use LIST(col, ',')
+• Nomes de colunas: use EXATAMENTE como estão no schema (case-sensitive)
+• Se a query falhar: leia o erro, corrija e tente de novo (máx 2 tentativas)
 
-4. TIPOS e CONVERSÕES:
-   - Cast: CONVERT(tipo, valor) ou CAST(valor AS tipo)
-   - Datas: YEAR(col), MONTH(col), DAY(col), DATEFORMAT(col, 'yyyy-mm-dd')
-   - Concatenação: col1 || ' ' || col2  ou  STRING(col1, ' ', col2)
+══════════════════════════════════════════
+COMO RESPONDER:
+══════════════════════════════════════════
+1. Identifique as tabelas relevantes no schema abaixo
+2. Execute a query (máx 2-3 queries por resposta)
+3. ANALISE os resultados: destaque os números mais importantes, tendências, comparações
+4. Responda em português com tabela markdown quando houver dados tabulares
+5. Mostre a query SQL usada em bloco \`\`\`sql para o usuário poder reutilizar
+6. Se o dado não existir, diga claramente qual tabela foi consultada e o que encontrou
 
-5. AGREGAÇÕES:
-   - GROUP BY deve incluir todas as colunas não agregadas do SELECT
-   - Em vez de STRING_AGG use LIST(col, ',')
-   - HAVING funciona normalmente
-
-6. SUBQUERIES e JOINs funcionam normalmente.
-
-7. Datas: o formato padrão é 'YYYY-MM-DD'. Para o ano corrente: YEAR(NOW()).
-
-8. NULL: use IS NULL / IS NOT NULL. Função: ISNULL(col, valor_default).
-
-9. Se a query retornar erro, analise o erro, corrija e tente novamente (até 3 vezes).
-
-10. Sempre ordene resultados relevantes com ORDER BY.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-COMPORTAMENTO
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- Você já conhece o schema completo (listado abaixo). NÃO precisa descobrir tabelas — vá direto à query.
-- Para perguntas de negócio (ex: "maiores despesas por secretaria"), identifique as tabelas relevantes no schema, monte a query correta e execute imediatamente.
-- Responda em português brasileiro.
-- Para resultados tabulares, use tabelas markdown.
-- Mostre a query SQL executada em bloco de código sql para referência do usuário.
-- Se não encontrar dados relevantes, explique quais tabelas poderiam ter a informação e o que foi tentado.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+══════════════════════════════════════════
+SCHEMA COMPLETO — pref_aruja_sp:
+══════════════════════════════════════════
 ${schemaContext}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+══════════════════════════════════════════`
 }
 
 export async function POST(req: NextRequest) {
@@ -95,25 +87,22 @@ export async function POST(req: NextRequest) {
 
   async function run() {
     try {
-      // Schema já em cache — 0 round-trips de descoberta
       const schemaContext = await getSchemaContext(forceRefreshSchema ?? false)
       const systemPrompt = buildSystemPrompt(schemaContext)
 
       const msgs: Anthropic.MessageParam[] = [...messages]
-      let attempt = 0
+      let queryCount = 0
+      const MAX_QUERIES = 3
 
-      while (attempt < 6) {
-        attempt++
-
+      for (let turn = 0; turn < 8; turn++) {
         const response = await client.messages.create({
           model: 'claude-sonnet-4-6',
           max_tokens: 4096,
           system: systemPrompt,
-          tools: TOOLS,
+          tools: queryCount >= MAX_QUERIES ? [] : TOOLS, // bloqueia mais queries se atingir limite
           messages: msgs,
         })
 
-        // Streama texto imediatamente
         for (const block of response.content) {
           if (block.type === 'text' && block.text) {
             await send({ type: 'text', text: block.text })
@@ -124,33 +113,31 @@ export async function POST(req: NextRequest) {
 
         if (response.stop_reason === 'tool_use') {
           msgs.push({ role: 'assistant', content: response.content })
-
           const toolResults: Anthropic.ToolResultBlockParam[] = []
 
           for (const block of response.content) {
-            if (block.type !== 'tool_use') continue
+            if (block.type !== 'tool_use' || block.name !== 'executar_query') continue
 
-            if (block.name === 'executar_query') {
-              const input = block.input as { sql: string; limit?: number }
+            queryCount++
+            const input = block.input as { sql: string; limit?: number }
 
-              await send({ type: 'tool_start', name: 'executar_query', sql: input.sql })
+            await send({ type: 'tool_start', name: 'executar_query', sql: input.sql })
 
-              let resultContent: string
-              try {
-                const result = await agentQuery(input.sql, input.limit ?? 100)
-                resultContent = JSON.stringify(result)
-                await send({ type: 'tool_end', name: 'executar_query', rows: result.count })
-              } catch (e) {
-                resultContent = JSON.stringify({ error: String(e) })
-                await send({ type: 'tool_end', name: 'executar_query', error: String(e) })
-              }
-
-              toolResults.push({
-                type: 'tool_result',
-                tool_use_id: block.id,
-                content: resultContent,
-              })
+            let resultContent: string
+            try {
+              const result = await agentQuery(input.sql, input.limit ?? 200)
+              resultContent = JSON.stringify(result)
+              await send({ type: 'tool_end', name: 'executar_query', rows: result.count })
+            } catch (e) {
+              resultContent = JSON.stringify({ error: String(e) })
+              await send({ type: 'tool_end', name: 'executar_query', error: String(e) })
             }
+
+            toolResults.push({
+              type: 'tool_result',
+              tool_use_id: block.id,
+              content: resultContent,
+            })
           }
 
           msgs.push({ role: 'user', content: toolResults })
