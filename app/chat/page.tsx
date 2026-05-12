@@ -452,20 +452,26 @@ const CSS = `
 .kc-bubble.ai code { background: var(--surface-2); color: var(--green); padding: 1px 5px; border-radius: 5px; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
 
 /* Table inside bubble */
-.kc-md-table { overflow-x: auto; border-radius: 10px; border: 1px solid var(--line); margin: 8px 0; }
-.kc-md-table table { width: 100%; font-size: 12px; border-collapse: collapse; }
-.kc-md-table th { text-align: left; padding: 7px 10px; background: var(--surface-2); border-bottom: 1px solid var(--line); font-size: 11px; font-weight: 700; color: var(--ink-3); text-transform: uppercase; letter-spacing: .07em; white-space: nowrap; }
-.kc-md-table td { padding: 6px 10px; border-bottom: 1px solid var(--line); color: var(--ink-2); font-family: 'JetBrains Mono', monospace; font-size: 11.5px; }
+.kc-md-table { overflow-x: auto; border-radius: 14px; border: 1px solid var(--line); margin: 10px 0; box-shadow: var(--shadow-sm); }
+.kc-md-table table { width: 100%; font-size: 12.5px; border-collapse: collapse; }
+.kc-md-table thead tr { background: var(--green); }
+.kc-md-table th { text-align: left; padding: 9px 14px; font-size: 11px; font-weight: 700; color: #fff; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; border: none; }
+.kc-md-table tbody tr:nth-child(even) td { background: var(--surface-2); }
+.kc-md-table tbody tr:nth-child(odd) td { background: var(--surface); }
+.kc-md-table td { padding: 8px 14px; border-bottom: 1px solid var(--line); color: var(--ink-2); font-family: 'JetBrains Mono', monospace; font-size: 12px; }
 .kc-md-table tr:last-child td { border-bottom: 0; }
-.kc-md-table tr:hover td { background: var(--green-soft); }
-.kc-chart-toggle { display: flex; gap: 4px; margin-bottom: 8px; }
+.kc-md-table tbody tr:hover td { background: var(--green-soft) !important; color: var(--ink); transition: background .1s; }
+.kc-md-table td:first-child { color: var(--ink); font-weight: 600; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; }
+.kc-chart-toggle { display: flex; gap: 4px; margin-bottom: 10px; }
 .kc-chart-tab {
-  font-size: 11.5px; font-weight: 700; padding: 4px 12px;
+  font-size: 12px; font-weight: 700; padding: 5px 14px;
   border-radius: 999px; border: 1px solid var(--line-2);
   background: var(--surface); color: var(--ink-2);
-  cursor: pointer; font-family: inherit; transition: background .1s;
+  cursor: pointer; font-family: inherit; transition: all .12s;
+  display: flex; align-items: center; gap: 5px;
 }
-.kc-chart-tab.on { background: var(--green); color: #fff; border-color: var(--green); }
+.kc-chart-tab:hover { border-color: var(--green); color: var(--green); }
+.kc-chart-tab.on { background: var(--green); color: #fff; border-color: var(--green); box-shadow: 0 2px 8px oklch(0.48 0.11 155 / .25); }
 
 /* Input area */
 .kc-input-bar {
@@ -561,7 +567,7 @@ function formatTick(val: number): string {
 }
 
 function TableAndChart({ headers, rows }: { headers: string[]; rows: string[][] }) {
-  const [view, setView] = useState<'table' | 'chart'>('table')
+  const [view, setView] = useState<'table' | 'chart'>('chart')
 
   const numericCols = headers.map((_, ci) => {
     const vals = rows.slice(0, 15).map(r => parseNum(r[ci] ?? ''))
@@ -653,8 +659,14 @@ function TableAndChart({ headers, rows }: { headers: string[]; rows: string[][] 
     <div style={{ margin: '10px 0' }}>
       {hasChart && (
         <div className="kc-chart-toggle">
-          <button className={`kc-chart-tab${view === 'table' ? ' on' : ''}`} onClick={() => setView('table')}>Tabela</button>
-          <button className={`kc-chart-tab${view === 'chart' ? ' on' : ''}`} onClick={() => setView('chart')}>Gráfico</button>
+          <button className={`kc-chart-tab${view === 'chart' ? ' on' : ''}`} onClick={() => setView('chart')}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M4 19V5M4 19h16M8 15V9M12 15V6M16 15v-3" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+            Gráfico
+          </button>
+          <button className={`kc-chart-tab${view === 'table' ? ' on' : ''}`} onClick={() => setView('table')}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M3 10h18M3 14h18M10 6v12M14 6v12" stroke="currentColor" strokeWidth="2"/></svg>
+            Tabela
+          </button>
         </div>
       )}
       {view === 'chart' && hasChart ? chartEl : tableEl}
