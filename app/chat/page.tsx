@@ -566,6 +566,26 @@ function formatTick(val: number): string {
   return val.toLocaleString('pt-BR', { maximumFractionDigits: 2 })
 }
 
+type ChartType = 'bar' | 'bar-h' | 'area'
+
+const CHART_TYPE_OPTS: { type: ChartType; label: string; icon: React.ReactNode }[] = [
+  {
+    type: 'bar',
+    label: 'Colunas',
+    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 19V5M4 19h16M8 15V9M12 15V5M16 15v-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>,
+  },
+  {
+    type: 'bar-h',
+    label: 'Barras',
+    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 4h16M5 4v16M9 8h8M9 12h12M9 16h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>,
+  },
+  {
+    type: 'area',
+    label: 'Linha',
+    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 17l4-6 4 3 4-7 4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+  },
+]
+
 function TableAndChart({ headers, rows }: { headers: string[]; rows: string[][] }) {
   const [view, setView] = useState<'table' | 'chart'>('chart')
 
@@ -581,6 +601,13 @@ function TableAndChart({ headers, rows }: { headers: string[]; rows: string[][] 
 
   const hasChart = valueCols.length > 0 && rows.length >= 2
 
+  const labels = rows.map(r => r[actualLabelCol] ?? '')
+  const timeSeries = isTimeSeries(labels)
+  const longLabels = labels.some(l => l.length > 18)
+
+  const defaultChartType: ChartType = timeSeries ? 'area' : longLabels ? 'bar-h' : 'bar'
+  const [chartType, setChartType] = useState<ChartType>(defaultChartType)
+
   const chartData = rows.map(row => {
     const obj: Record<string, string | number> = { label: row[actualLabelCol] ?? '' }
     valueCols.forEach(ci => {
@@ -590,14 +617,11 @@ function TableAndChart({ headers, rows }: { headers: string[]; rows: string[][] 
     return obj
   })
 
-  const labels = rows.map(r => r[actualLabelCol] ?? '')
-  const timeSeries = isTimeSeries(labels)
-  const longLabels = labels.some(l => l.length > 18)
   const maxLabelLen = Math.max(...labels.map(l => l.length))
   const yAxisWidth = Math.min(180, Math.max(80, maxLabelLen * 6.5))
-  const chartHeight = longLabels
-    ? Math.max(200, Math.min(600, rows.length * 28 + 60))
-    : Math.max(220, Math.min(400, rows.length * 20 + 80))
+  const chartHeight = chartType === 'bar-h'
+    ? Math.max(200, Math.min(600, rows.length * 32 + 60))
+    : Math.max(240, Math.min(400, rows.length * 20 + 80))
 
   const tableEl = (
     <div className="kc-md-table">
@@ -633,7 +657,7 @@ function TableAndChart({ headers, rows }: { headers: string[]; rows: string[][] 
   const chartEl = (
     <div style={{ background: 'var(--surface)', borderRadius: '16px', padding: '16px 8px 8px', border: '1px solid var(--line)', boxShadow: 'var(--shadow-sm)' }}>
       <ResponsiveContainer width="100%" height={chartHeight}>
-        {timeSeries ? (
+        {chartType === 'area' ? (
           <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
             <defs>
               {valueCols.map((ci, idx) => (
@@ -646,50 +670,34 @@ function TableAndChart({ headers, rows }: { headers: string[]; rows: string[][] 
             <XAxis dataKey="label" {...axisProps} dy={8} />
             <YAxis tickFormatter={formatTick} {...axisProps} width={68} />
             <ReferenceLine y={0} stroke="var(--line-2)" strokeWidth={1} />
-            <Tooltip
-              formatter={(v) => [formatTick(Number(v ?? 0)), '']}
-              contentStyle={tooltipStyle}
-              cursor={{ stroke: 'var(--green)', strokeWidth: 1, strokeDasharray: '4 2' }}
-            />
+            <Tooltip formatter={(v) => [formatTick(Number(v ?? 0)), '']} contentStyle={tooltipStyle} cursor={{ stroke: 'var(--green)', strokeWidth: 1, strokeDasharray: '4 2' }} />
             <Legend wrapperStyle={{ fontSize: 11.5, paddingTop: 8 }} />
             {valueCols.map((ci, idx) => (
-              <Area
-                key={ci}
-                type="monotone"
-                dataKey={headers[ci]}
-                stroke={CHART_COLORS[idx % CHART_COLORS.length]}
-                strokeWidth={2.5}
+              <Area key={ci} type="monotone" dataKey={headers[ci]}
+                stroke={CHART_COLORS[idx % CHART_COLORS.length]} strokeWidth={2.5}
                 fill={`url(#grad-${idx})`}
                 dot={{ r: rows.length <= 24 ? 3 : 0, fill: CHART_COLORS[idx % CHART_COLORS.length], strokeWidth: 0 }}
                 activeDot={{ r: 5, fill: CHART_COLORS[idx % CHART_COLORS.length], stroke: 'var(--surface)', strokeWidth: 2 }}
               />
             ))}
           </AreaChart>
-        ) : longLabels ? (
+        ) : chartType === 'bar-h' ? (
           <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 40, left: 0, bottom: 5 }}>
             <XAxis type="number" tickFormatter={formatTick} {...axisProps} />
             <YAxis dataKey="label" type="category" {...axisProps} width={yAxisWidth} />
             <ReferenceLine x={0} stroke="var(--line-2)" />
-            <Tooltip
-              formatter={(v) => [formatTick(Number(v ?? 0)), '']}
-              contentStyle={tooltipStyle}
-              cursor={{ fill: 'var(--green-soft)' }}
-            />
+            <Tooltip formatter={(v) => [formatTick(Number(v ?? 0)), '']} contentStyle={tooltipStyle} cursor={{ fill: 'var(--green-soft)' }} />
             <Legend wrapperStyle={{ fontSize: 11.5, paddingTop: 8 }} />
             {valueCols.map((ci, idx) => (
               <Bar key={ci} dataKey={headers[ci]} fill={CHART_COLORS[idx % CHART_COLORS.length]} radius={[0, 8, 8, 0]} maxBarSize={28} />
             ))}
           </BarChart>
         ) : (
-          <BarChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: longLabels ? 5 : 40 }}>
+          <BarChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: rows.length > 6 ? 48 : 30 }}>
             <XAxis dataKey="label" {...axisProps} angle={rows.length > 6 ? -35 : 0} textAnchor={rows.length > 6 ? 'end' : 'middle'} interval={0} dy={8} />
             <YAxis tickFormatter={formatTick} {...axisProps} width={68} />
             <ReferenceLine y={0} stroke="var(--line-2)" />
-            <Tooltip
-              formatter={(v) => [formatTick(Number(v ?? 0)), '']}
-              contentStyle={tooltipStyle}
-              cursor={{ fill: 'var(--green-soft)' }}
-            />
+            <Tooltip formatter={(v) => [formatTick(Number(v ?? 0)), '']} contentStyle={tooltipStyle} cursor={{ fill: 'var(--green-soft)' }} />
             <Legend wrapperStyle={{ fontSize: 11.5, paddingTop: 8 }} />
             {valueCols.map((ci, idx) => (
               <Bar key={ci} dataKey={headers[ci]} fill={CHART_COLORS[idx % CHART_COLORS.length]} radius={[6, 6, 0, 0]} maxBarSize={48} />
@@ -703,15 +711,44 @@ function TableAndChart({ headers, rows }: { headers: string[]; rows: string[][] 
   return (
     <div style={{ margin: '10px 0' }}>
       {hasChart && (
-        <div className="kc-chart-toggle">
-          <button className={`kc-chart-tab${view === 'chart' ? ' on' : ''}`} onClick={() => setView('chart')}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M4 19V5M4 19h16M8 15V9M12 15V6M16 15v-3" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-            Gráfico
-          </button>
-          <button className={`kc-chart-tab${view === 'table' ? ' on' : ''}`} onClick={() => setView('table')}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M3 10h18M3 14h18M10 6v12M14 6v12" stroke="currentColor" strokeWidth="2"/></svg>
-            Tabela
-          </button>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', gap: '8px', flexWrap: 'wrap' }}>
+          {/* View toggle */}
+          <div className="kc-chart-toggle">
+            <button className={`kc-chart-tab${view === 'chart' ? ' on' : ''}`} onClick={() => setView('chart')}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M4 19V5M4 19h16M8 15V9M12 15V6M16 15v-3" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+              Gráfico
+            </button>
+            <button className={`kc-chart-tab${view === 'table' ? ' on' : ''}`} onClick={() => setView('table')}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M3 10h18M3 14h18M10 6v12M14 6v12" stroke="currentColor" strokeWidth="2"/></svg>
+              Tabela
+            </button>
+          </div>
+
+          {/* Chart type selector — only when chart is visible */}
+          {view === 'chart' && (
+            <div style={{ display: 'flex', gap: '4px', background: 'var(--surface-2)', borderRadius: '10px', padding: '3px' }}>
+              {CHART_TYPE_OPTS.map(opt => (
+                <button
+                  key={opt.type}
+                  onClick={() => setChartType(opt.type)}
+                  title={opt.label}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '5px',
+                    padding: '5px 10px', borderRadius: '7px', border: 'none',
+                    background: chartType === opt.type ? 'var(--green)' : 'transparent',
+                    color: chartType === opt.type ? '#fff' : 'var(--ink-3)',
+                    cursor: 'pointer', fontFamily: 'inherit',
+                    fontSize: '11.5px', fontWeight: 600,
+                    transition: 'all .12s',
+                    boxShadow: chartType === opt.type ? '0 2px 6px oklch(0.48 0.11 155 / .3)' : 'none',
+                  }}
+                >
+                  {opt.icon}
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
       {view === 'chart' && hasChart ? chartEl : tableEl}
