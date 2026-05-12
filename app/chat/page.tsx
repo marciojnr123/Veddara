@@ -4,8 +4,8 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  LineChart, Line, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ReferenceLine,
+  AreaChart, Area, ResponsiveContainer,
 } from 'recharts'
 
 interface Message {
@@ -614,40 +614,85 @@ function TableAndChart({ headers, rows }: { headers: string[]; rows: string[][] 
     </div>
   )
 
+  const tooltipStyle = {
+    background: 'var(--surface)',
+    border: '1px solid var(--line)',
+    borderRadius: '14px',
+    boxShadow: '0 8px 24px rgba(0,0,0,.12)',
+    padding: '10px 14px',
+    fontSize: '12.5px',
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
+  }
+
+  const axisProps = {
+    tick: { fontSize: 11, fill: 'var(--ink-3)', fontFamily: "'Plus Jakarta Sans', sans-serif" },
+    axisLine: false as const,
+    tickLine: false as const,
+  }
+
   const chartEl = (
-    <div style={{ background: 'var(--surface-2)', borderRadius: '12px', padding: '12px', border: '1px solid var(--line)' }}>
+    <div style={{ background: 'var(--surface)', borderRadius: '16px', padding: '16px 8px 8px', border: '1px solid var(--line)', boxShadow: 'var(--shadow-sm)' }}>
       <ResponsiveContainer width="100%" height={chartHeight}>
         {timeSeries ? (
-          <LineChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
-            <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--ink-3)' }} />
-            <YAxis tickFormatter={formatTick} tick={{ fontSize: 10, fill: 'var(--ink-3)' }} width={70} />
-            <Tooltip formatter={(v) => formatTick(Number(v ?? 0))} contentStyle={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: '10px', fontSize: '12px' }} />
-            <Legend wrapperStyle={{ fontSize: 11 }} />
+          <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
+            <defs>
+              {valueCols.map((ci, idx) => (
+                <linearGradient key={ci} id={`grad-${idx}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={CHART_COLORS[idx % CHART_COLORS.length]} stopOpacity={0.25}/>
+                  <stop offset="95%" stopColor={CHART_COLORS[idx % CHART_COLORS.length]} stopOpacity={0}/>
+                </linearGradient>
+              ))}
+            </defs>
+            <XAxis dataKey="label" {...axisProps} dy={8} />
+            <YAxis tickFormatter={formatTick} {...axisProps} width={68} />
+            <ReferenceLine y={0} stroke="var(--line-2)" strokeWidth={1} />
+            <Tooltip
+              formatter={(v) => [formatTick(Number(v ?? 0)), '']}
+              contentStyle={tooltipStyle}
+              cursor={{ stroke: 'var(--green)', strokeWidth: 1, strokeDasharray: '4 2' }}
+            />
+            <Legend wrapperStyle={{ fontSize: 11.5, paddingTop: 8 }} />
             {valueCols.map((ci, idx) => (
-              <Line key={ci} type="monotone" dataKey={headers[ci]} stroke={CHART_COLORS[idx % CHART_COLORS.length]} strokeWidth={2} dot={rows.length <= 24} />
+              <Area
+                key={ci}
+                type="monotone"
+                dataKey={headers[ci]}
+                stroke={CHART_COLORS[idx % CHART_COLORS.length]}
+                strokeWidth={2.5}
+                fill={`url(#grad-${idx})`}
+                dot={{ r: rows.length <= 24 ? 3 : 0, fill: CHART_COLORS[idx % CHART_COLORS.length], strokeWidth: 0 }}
+                activeDot={{ r: 5, fill: CHART_COLORS[idx % CHART_COLORS.length], stroke: 'var(--surface)', strokeWidth: 2 }}
+              />
             ))}
-          </LineChart>
+          </AreaChart>
         ) : longLabels ? (
-          <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
-            <XAxis type="number" tickFormatter={formatTick} tick={{ fontSize: 10, fill: 'var(--ink-3)' }} />
-            <YAxis dataKey="label" type="category" tick={{ fontSize: 10, fill: 'var(--ink-3)' }} width={yAxisWidth} />
-            <Tooltip formatter={(v) => formatTick(Number(v ?? 0))} contentStyle={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: '10px', fontSize: '12px' }} />
-            <Legend wrapperStyle={{ fontSize: 11 }} />
+          <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 40, left: 0, bottom: 5 }}>
+            <XAxis type="number" tickFormatter={formatTick} {...axisProps} />
+            <YAxis dataKey="label" type="category" {...axisProps} width={yAxisWidth} />
+            <ReferenceLine x={0} stroke="var(--line-2)" />
+            <Tooltip
+              formatter={(v) => [formatTick(Number(v ?? 0)), '']}
+              contentStyle={tooltipStyle}
+              cursor={{ fill: 'var(--green-soft)' }}
+            />
+            <Legend wrapperStyle={{ fontSize: 11.5, paddingTop: 8 }} />
             {valueCols.map((ci, idx) => (
-              <Bar key={ci} dataKey={headers[ci]} fill={CHART_COLORS[idx % CHART_COLORS.length]} radius={[0, 4, 4, 0]} />
+              <Bar key={ci} dataKey={headers[ci]} fill={CHART_COLORS[idx % CHART_COLORS.length]} radius={[0, 8, 8, 0]} maxBarSize={28} />
             ))}
           </BarChart>
         ) : (
-          <BarChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 30 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
-            <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--ink-3)' }} angle={-30} textAnchor="end" interval={0} />
-            <YAxis tickFormatter={formatTick} tick={{ fontSize: 10, fill: 'var(--ink-3)' }} width={70} />
-            <Tooltip formatter={(v) => formatTick(Number(v ?? 0))} contentStyle={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: '10px', fontSize: '12px' }} />
-            <Legend wrapperStyle={{ fontSize: 11 }} />
+          <BarChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: longLabels ? 5 : 40 }}>
+            <XAxis dataKey="label" {...axisProps} angle={rows.length > 6 ? -35 : 0} textAnchor={rows.length > 6 ? 'end' : 'middle'} interval={0} dy={8} />
+            <YAxis tickFormatter={formatTick} {...axisProps} width={68} />
+            <ReferenceLine y={0} stroke="var(--line-2)" />
+            <Tooltip
+              formatter={(v) => [formatTick(Number(v ?? 0)), '']}
+              contentStyle={tooltipStyle}
+              cursor={{ fill: 'var(--green-soft)' }}
+            />
+            <Legend wrapperStyle={{ fontSize: 11.5, paddingTop: 8 }} />
             {valueCols.map((ci, idx) => (
-              <Bar key={ci} dataKey={headers[ci]} fill={CHART_COLORS[idx % CHART_COLORS.length]} radius={[4, 4, 0, 0]} />
+              <Bar key={ci} dataKey={headers[ci]} fill={CHART_COLORS[idx % CHART_COLORS.length]} radius={[6, 6, 0, 0]} maxBarSize={48} />
             ))}
           </BarChart>
         )}
