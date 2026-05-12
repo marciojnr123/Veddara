@@ -69,12 +69,13 @@ REGRAS DE NEGÓCIO — ANO / EXERCÍCIO:
 ══════════════════════════════════════════
 REGRAS DE NEGÓCIO — DIM_BIORC_INSTITUCIONAL:
 ══════════════════════════════════════════
-• SECRETARIAS da prefeitura = poder executivo: CD_ORGAO = 1 E DS_UO <> DS_ORGAO
-• CD_ORGAO = 2 → Câmara Municipal (poder LEGISLATIVO) — NÃO é secretaria da prefeitura
-• CD_ORGAO negativo (-1, -2, -3) → registros sem classificação — excluir de análises
+• SECRETARIAS da prefeitura = poder executivo: CD_ORGAO = '1' E DS_UO <> DS_ORGAO
+• CD_ORGAO = '2' → Câmara Municipal (poder LEGISLATIVO) — NÃO é secretaria da prefeitura
+• CD_ORGAO negativo ('-1', '-2', '-3') → registros sem classificação — excluir de análises
 • Quando DS_UO = DS_ORGAO → linha genérica do órgão inteiro, NÃO uma secretaria específica
+• CD_ORGAO é VARCHAR — SEMPRE use aspas simples: CD_ORGAO = '1', NUNCA CD_ORGAO = 1
 • SEMPRE que a pergunta for sobre "secretarias" ou "por secretaria":
-    use: AND i.CD_ORGAO = 1 AND i.DS_UO <> i.DS_ORGAO
+    use: AND i.CD_ORGAO = '1' AND i.DS_UO <> i.DS_ORGAO
 
 ══════════════════════════════════════════
 COMO RESPONDER:
@@ -121,13 +122,29 @@ export async function POST(req: NextRequest) {
       const MAX_QUERIES = 3
 
       for (let turn = 0; turn < 8; turn++) {
-        const response = await client.messages.create({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 4096,
-          system: systemPrompt,
-          tools: queryCount >= MAX_QUERIES ? [] : TOOLS, // bloqueia mais queries se atingir limite
-          messages: msgs,
-        })
+        let response: Anthropic.Message | null = null
+        for (let attempt = 0; attempt < 4; attempt++) {
+          try {
+            response = await client.messages.create({
+              model: 'claude-sonnet-4-6',
+              max_tokens: 4096,
+              system: systemPrompt,
+              tools: queryCount >= MAX_QUERIES ? [] : TOOLS,
+              messages: msgs,
+            })
+            break
+          } catch (err: unknown) {
+            const status = (err as { status?: number }).status
+            if (status === 529 && attempt < 3) {
+              const wait = (attempt + 1) * 8000
+              await send({ type: 'text', text: `_(API sobrecarregada, tentando novamente em ${wait / 1000}s…)_\n` })
+              await new Promise(r => setTimeout(r, wait))
+              continue
+            }
+            throw err
+          }
+        }
+        if (!response) throw new Error('Falha após 4 tentativas (API overloaded)')
 
         for (const block of response.content) {
           if (block.type === 'text' && block.text) {
