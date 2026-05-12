@@ -3,6 +3,10 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  LineChart, Line, ResponsiveContainer,
+} from 'recharts'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -19,10 +23,192 @@ interface ToolEvent {
 
 const SUGESTOES = [
   'Quais são as maiores despesas por secretaria?',
-  'Mostre o total de despesas por mês no ano atual',
+  'Mostre o total de despesas por mês em 2025',
   'Quais fornecedores receberam mais pagamentos?',
-  'Quantos funcionários ativos existem?',
+  'Compare empenho, liquidação e pagamento por secretaria',
 ]
+
+const CHART_COLORS = ['#1d4ed8', '#059669', '#d97706', '#dc2626', '#7c3aed', '#0891b2']
+
+function parseNum(raw: string): number | null {
+  const cleaned = raw
+    .replace(/R\$\s*/g, '')
+    .replace(/\s/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.')
+    .trim()
+  const n = parseFloat(cleaned)
+  return isNaN(n) ? null : n
+}
+
+function isTimeSeries(labels: string[]): boolean {
+  return labels.filter(l =>
+    /^\d{4}$/.test(l) ||
+    /^\d{4}[-/]\d{2}/.test(l) ||
+    /^(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)/i.test(l) ||
+    /^\d{2}\/\d{4}$/.test(l)
+  ).length >= labels.length * 0.6
+}
+
+function formatTick(val: number): string {
+  if (Math.abs(val) >= 1_000_000_000) return `${(val / 1_000_000_000).toFixed(1)}B`
+  if (Math.abs(val) >= 1_000_000) return `${(val / 1_000_000).toFixed(1)}M`
+  if (Math.abs(val) >= 1_000) return `${(val / 1_000).toFixed(0)}K`
+  return val.toLocaleString('pt-BR', { maximumFractionDigits: 2 })
+}
+
+function TableAndChart({ headers, rows }: { headers: string[]; rows: string[][] }) {
+  const [view, setView] = useState<'table' | 'chart'>('table')
+
+  // Detect which columns are numeric (majority of non-empty values parse as number)
+  const numericCols = headers.map((_, ci) => {
+    const vals = rows.slice(0, 15).map(r => parseNum(r[ci] ?? ''))
+    const nonNull = vals.filter(v => v !== null)
+    return nonNull.length >= Math.min(2, rows.length)
+  })
+
+  const labelColIdx = numericCols.findIndex(n => !n)
+  const actualLabelCol = labelColIdx === -1 ? 0 : labelColIdx
+  const valueCols = headers.map((_, i) => i).filter(i => numericCols[i] && i !== actualLabelCol)
+
+  const hasChart = valueCols.length > 0 && rows.length >= 2
+
+  const chartData = rows.map(row => {
+    const obj: Record<string, string | number> = { label: row[actualLabelCol] ?? '' }
+    valueCols.forEach(ci => {
+      const val = parseNum(row[ci] ?? '')
+      if (val !== null) obj[headers[ci]] = val
+    })
+    return obj
+  })
+
+  const labels = rows.map(r => r[actualLabelCol] ?? '')
+  const timeSeries = isTimeSeries(labels)
+  const longLabels = labels.some(l => l.length > 18)
+  const maxLabelLen = Math.max(...labels.map(l => l.length))
+  const yAxisWidth = Math.min(180, Math.max(80, maxLabelLen * 6.5))
+  const chartHeight = longLabels
+    ? Math.max(200, Math.min(600, rows.length * 28 + 60))
+    : Math.max(220, Math.min(400, rows.length * 20 + 80))
+
+  const tableEl = (
+    <div className="overflow-x-auto rounded-lg border border-slate-200">
+      <table className="text-xs border-collapse w-full">
+        <thead>
+          <tr className="bg-blue-50 border-b border-slate-200">
+            {headers.map((h, j) => (
+              <th key={j} className="px-3 py-2 text-left font-semibold text-slate-700 whitespace-nowrap">{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, ri) => (
+            <tr key={ri} className={ri % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+              {row.map((cell, ci) => (
+                <td key={ci} className="px-3 py-1.5 text-slate-700 font-mono border-t border-slate-100">{cell}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+
+  const chartEl = (
+    <div className="bg-white border border-slate-200 rounded-lg p-3">
+      <ResponsiveContainer width="100%" height={chartHeight}>
+        {timeSeries ? (
+          <LineChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+            <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+            <YAxis tickFormatter={formatTick} tick={{ fontSize: 10 }} width={70} />
+            <Tooltip formatter={(v: number) => formatTick(v)} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            {valueCols.map((ci, idx) => (
+              <Line
+                key={ci}
+                type="monotone"
+                dataKey={headers[ci]}
+                stroke={CHART_COLORS[idx % CHART_COLORS.length]}
+                strokeWidth={2}
+                dot={rows.length <= 24}
+              />
+            ))}
+          </LineChart>
+        ) : longLabels ? (
+          <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+            <XAxis type="number" tickFormatter={formatTick} tick={{ fontSize: 10 }} />
+            <YAxis dataKey="label" type="category" tick={{ fontSize: 10 }} width={yAxisWidth} />
+            <Tooltip formatter={(v: number) => formatTick(v)} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            {valueCols.map((ci, idx) => (
+              <Bar key={ci} dataKey={headers[ci]} fill={CHART_COLORS[idx % CHART_COLORS.length]} radius={[0, 3, 3, 0]} />
+            ))}
+          </BarChart>
+        ) : (
+          <BarChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 30 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+            <XAxis dataKey="label" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" interval={0} />
+            <YAxis tickFormatter={formatTick} tick={{ fontSize: 10 }} width={70} />
+            <Tooltip formatter={(v: number) => formatTick(v)} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            {valueCols.map((ci, idx) => (
+              <Bar key={ci} dataKey={headers[ci]} fill={CHART_COLORS[idx % CHART_COLORS.length]} radius={[3, 3, 0, 0]} />
+            ))}
+          </BarChart>
+        )}
+      </ResponsiveContainer>
+    </div>
+  )
+
+  return (
+    <div className="my-3">
+      {hasChart && (
+        <div className="flex gap-1 mb-2">
+          <button
+            onClick={() => setView('table')}
+            className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+              view === 'table'
+                ? 'bg-blue-700 text-white border-blue-700'
+                : 'bg-white text-slate-600 border-slate-300 hover:border-blue-400'
+            }`}
+          >
+            Tabela
+          </button>
+          <button
+            onClick={() => setView('chart')}
+            className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+              view === 'chart'
+                ? 'bg-blue-700 text-white border-blue-700'
+                : 'bg-white text-slate-600 border-slate-300 hover:border-blue-400'
+            }`}
+          >
+            📊 Gráfico
+          </button>
+        </div>
+      )}
+      {view === 'chart' && hasChart ? chartEl : tableEl}
+    </div>
+  )
+}
+
+function InlineMarkdown({ text }: { text: string }) {
+  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g)
+  return (
+    <>
+      {parts.map((part, i) => {
+        if (part.startsWith('**') && part.endsWith('**'))
+          return <strong key={i} className="font-semibold text-slate-900">{part.slice(2, -2)}</strong>
+        if (part.startsWith('`') && part.endsWith('`'))
+          return <code key={i} className="bg-slate-100 text-blue-700 px-1 rounded font-mono text-xs">{part.slice(1, -1)}</code>
+        if (part.startsWith('*') && part.endsWith('*'))
+          return <em key={i}>{part.slice(1, -1)}</em>
+        return <span key={i}>{part}</span>
+      })}
+    </>
+  )
+}
 
 function MarkdownText({ text }: { text: string }) {
   const lines = text.split('\n')
@@ -70,31 +256,9 @@ function MarkdownText({ text }: { text: string }) {
             .map(c => c.trim())
         )
       if (rows.length > 0) {
+        const [headerRow, ...dataRows] = rows
         elements.push(
-          <div key={i} className="my-3 overflow-x-auto rounded-lg border border-slate-200">
-            <table className="text-xs border-collapse w-full">
-              <thead>
-                <tr className="bg-blue-50 border-b border-slate-200">
-                  {rows[0].map((h, j) => (
-                    <th key={j} className="px-3 py-2 text-left font-semibold text-slate-700 whitespace-nowrap">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.slice(1).map((row, ri) => (
-                  <tr key={ri} className={ri % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                    {row.map((cell, ci) => (
-                      <td key={ci} className="px-3 py-1.5 text-slate-700 font-mono border-t border-slate-100">
-                        {cell}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <TableAndChart key={i} headers={headerRow} rows={dataRows} />
         )
       }
       continue
@@ -125,23 +289,6 @@ function MarkdownText({ text }: { text: string }) {
   }
 
   return <div className="space-y-0.5">{elements}</div>
-}
-
-function InlineMarkdown({ text }: { text: string }) {
-  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g)
-  return (
-    <>
-      {parts.map((part, i) => {
-        if (part.startsWith('**') && part.endsWith('**'))
-          return <strong key={i} className="font-semibold text-slate-900">{part.slice(2, -2)}</strong>
-        if (part.startsWith('`') && part.endsWith('`'))
-          return <code key={i} className="bg-slate-100 text-blue-700 px-1 rounded font-mono text-xs">{part.slice(1, -1)}</code>
-        if (part.startsWith('*') && part.endsWith('*'))
-          return <em key={i}>{part.slice(1, -1)}</em>
-        return <span key={i}>{part}</span>
-      })}
-    </>
-  )
 }
 
 function ToolIndicator({ tool }: { tool: ToolEvent }) {
@@ -290,7 +437,6 @@ export default function ChatPage() {
     }
   }
 
-  // Intercala mensagens com tool events da última resposta
   const renderMessages = () => {
     return messages.map((msg, i) => {
       const isLast = i === messages.length - 1
@@ -326,7 +472,6 @@ export default function ChatPage() {
             </div>
           </div>
 
-          {/* Tool events só na última mensagem do assistente */}
           {isLast && isAssistant && toolEvents.length > 0 && (
             <div className="ml-10 mb-2 space-y-1">
               {toolEvents.map((t, ti) => <ToolIndicator key={ti} tool={t} />)}
@@ -339,7 +484,6 @@ export default function ChatPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      {/* Header */}
       <header className="bg-blue-900 text-white px-6 py-3 flex items-center justify-between shadow-lg">
         <div className="flex items-center gap-3">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -378,7 +522,6 @@ export default function ChatPage() {
         </div>
       </header>
 
-      {/* Chat */}
       <div className="flex-1 overflow-y-auto px-4 py-6 max-w-4xl mx-auto w-full">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
@@ -412,7 +555,6 @@ export default function ChatPage() {
         )}
       </div>
 
-      {/* Input */}
       <div className="bg-white border-t border-slate-200 px-4 py-4">
         <div className="max-w-4xl mx-auto flex gap-3 items-end">
           <textarea
