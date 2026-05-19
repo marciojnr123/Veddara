@@ -545,7 +545,7 @@ export default function DashboardPage() {
           </div>
           <div className="k-brand-text">
             <div className="t1">Analytics Municipal</div>
-            <div className="t2">Prefeitura de Arujá</div>
+            
           </div>
         </div>
 

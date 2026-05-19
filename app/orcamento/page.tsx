@@ -307,7 +307,7 @@ export default function OrcamentoPage() {
           </div>
           <div className="kor-brand-text">
             <div className="t1">Analytics Municipal</div>
-            <div className="t2">Prefeitura de Arujá</div>
+            
           </div>
         </div>
 

@@ -1036,7 +1036,7 @@ export default function ChatPage() {
           </div>
           <div className="kc-brand-text">
             <div className="t1">Analytics Municipal</div>
-            <div className="t2">Prefeitura de Arujá</div>
+            
           </div>
         </div>
 
