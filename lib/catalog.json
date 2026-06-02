@@ -99,7 +99,7 @@
         "EZ_VEDDARA_INVOICE_ORDER ON Id = SalespersonId"
       ],
       "exemplos_query": [
-        "-- Ranking de vendedores por faturamento (notas fiscais emitidas):\nSELECT TOP 20\n  sp.Firstname || ' ' || sp.LastName AS vendedor,\n  COUNT(DISTINCT io.Id) AS total_pedidos,\n  SUM(ii.TOTAL_SALE_PRICE) AS faturamento_total\nFROM veddara.EZ_VEDDARA_SALE_SALESPERSON sp\nJOIN veddara.EZ_VEDDARA_INVOICE_ORDER io ON sp.Id = io.SalespersonId\nJOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId\nWHERE sp.Status = 1\nGROUP BY sp.Firstname, sp.LastName\nORDER BY faturamento_total DESC"
+        "-- Ranking de vendedores por faturamento (notas fiscais efetivadas):\nSELECT TOP 20\n  sp.Firstname || ' ' || sp.LastName AS vendedor,\n  COUNT(DISTINCT io.Id) AS total_notas,\n  SUM(ii.TOTAL_SALE_PRICE) AS faturamento_total\nFROM veddara.EZ_VEDDARA_SALE_SALESPERSON sp\nJOIN veddara.EZ_VEDDARA_INVOICE_ORDER io ON sp.Id = io.SalespersonId\nJOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId\nWHERE sp.Status = 1 AND io.Status = 100\nGROUP BY sp.Firstname, sp.LastName\nORDER BY faturamento_total DESC"
       ]
     },
     {
@@ -139,7 +139,7 @@
         "SalespersonId": "UUID do vendedor — JOIN com EZ_VEDDARA_SALE_SALESPERSON.Id",
         "AgentId": "UUID do agente",
         "SupervisorId": "UUID do supervisor",
-        "Status": "Status: 1=Aberto, 2=Aprovado, 3=Cancelado, 4=Expirado",
+        "Status": "Status (valores reais): 100=Convertido/Ganho (tem SalesOrderId), 99=Cancelado/Perdido, 2=Em aberto, 1=Rascunho. Para orçamentos efetivados use Status=100; pipeline use Status IN (1,2); perdidos use Status=99",
         "DateEstimateOrder": "Data de emissão do orçamento",
         "ExpiryDate": "Data de validade/expiração",
         "Priority": "Prioridade: 1=Baixa, 2=Normal, 3=Alta",
@@ -158,8 +158,8 @@
         "EZ_VEDDARA_SALE_ORDER ON SalesOrderId = Id"
       ],
       "exemplos_query": [
-        "-- Orçamentos por status:\nSELECT\n  CASE Status WHEN 1 THEN 'Aberto' WHEN 2 THEN 'Aprovado' WHEN 3 THEN 'Cancelado' WHEN 4 THEN 'Expirado' ELSE 'Outro' END AS status_desc,\n  COUNT(*) AS quantidade\nFROM veddara.EZ_VEDDARA_ESTIMATE_ORDER\nGROUP BY Status\nORDER BY quantidade DESC",
-        "-- Taxa de conversão de orçamentos por vendedor:\nSELECT\n  sp.Firstname || ' ' || sp.LastName AS vendedor,\n  COUNT(*) AS total_orcamentos,\n  SUM(CASE WHEN eo.Status = 2 THEN 1 ELSE 0 END) AS aprovados,\n  CAST(SUM(CASE WHEN eo.Status = 2 THEN 1 ELSE 0 END) AS DECIMAL(10,2)) / COUNT(*) * 100 AS taxa_conversao_pct\nFROM veddara.EZ_VEDDARA_ESTIMATE_ORDER eo\nJOIN veddara.EZ_VEDDARA_SALE_SALESPERSON sp ON eo.SalespersonId = sp.Id\nGROUP BY sp.Firstname, sp.LastName\nORDER BY taxa_conversao_pct DESC"
+        "-- Orçamentos por status:\nSELECT\n  CASE Status WHEN 100 THEN 'Convertido/Ganho' WHEN 99 THEN 'Cancelado/Perdido' WHEN 2 THEN 'Em aberto' WHEN 1 THEN 'Rascunho' ELSE 'Outro' END AS status_desc,\n  COUNT(*) AS quantidade\nFROM veddara.EZ_VEDDARA_ESTIMATE_ORDER\nGROUP BY Status\nORDER BY quantidade DESC",
+        "-- Taxa de conversão (win rate) de orçamentos por vendedor — ganhos vs perdidos, ignorando em aberto:\nSELECT\n  sp.Firstname || ' ' || sp.LastName AS vendedor,\n  SUM(CASE WHEN eo.Status = 100 THEN 1 ELSE 0 END) AS ganhos,\n  SUM(CASE WHEN eo.Status = 99 THEN 1 ELSE 0 END) AS perdidos,\n  CAST(SUM(CASE WHEN eo.Status = 100 THEN 1 ELSE 0 END) AS DECIMAL(10,2)) / NULLIF(SUM(CASE WHEN eo.Status IN (100,99) THEN 1 ELSE 0 END),0) * 100 AS win_rate_pct\nFROM veddara.EZ_VEDDARA_ESTIMATE_ORDER eo\nJOIN veddara.EZ_VEDDARA_SALE_SALESPERSON sp ON eo.SalespersonId = sp.Id\nGROUP BY sp.Firstname, sp.LastName\nORDER BY win_rate_pct DESC"
       ]
     },
     {
@@ -213,7 +213,7 @@
         "SalespersonId": "UUID do vendedor — JOIN com EZ_VEDDARA_SALE_SALESPERSON.Id",
         "AgentId": "UUID do agente",
         "SupervisorId": "UUID do supervisor",
-        "Status": "Status: 1=Aberto, 2=Faturado, 3=Cancelado, 4=Parcialmente Faturado",
+        "Status": "Status (valores reais): 100=Faturado/Efetivado (tem InvoiceId), 99=Cancelado, 2=Em aberto, 1=Rascunho. Para pedidos efetivados use Status=100",
         "DateSaleOrder": "Data de emissão do pedido",
         "EstimateOrderid": "UUID do orçamento de origem — JOIN com EZ_VEDDARA_ESTIMATE_ORDER.Id",
         "InvoiceId": "UUID da nota fiscal gerada — preenchido quando faturado",
@@ -291,7 +291,7 @@
         "SalespersonId": "UUID do vendedor — JOIN com EZ_VEDDARA_SALE_SALESPERSON.Id",
         "AgentId": "UUID do agente",
         "SupervisorId": "UUID do supervisor",
-        "Status": "Status: 1=Emitida, 2=Cancelada",
+        "Status": "Status (valores reais): 100=Emitida/Efetivada (válida), 99=Cancelada, 1=Rascunho. Para faturamento real use SEMPRE Status=100",
         "DateInvoiceOrder": "Data de emissão da nota fiscal",
         "SaleOrderId": "UUID do pedido de venda de origem — JOIN com EZ_VEDDARA_SALE_ORDER.Id",
         "EstimateOrderid": "UUID do orçamento de origem",
@@ -310,8 +310,8 @@
         "EZ_VEDDARA_SALE_ORDER ON SaleOrderId = Id"
       ],
       "exemplos_query": [
-        "-- Faturamento mensal:\nSELECT\n  YEAR(io.DateInvoiceOrder) AS ano,\n  MONTH(io.DateInvoiceOrder) AS mes,\n  COUNT(DISTINCT io.Id) AS qtd_notas,\n  SUM(ii.TOTAL_SALE_PRICE) AS faturamento_total\nFROM veddara.EZ_VEDDARA_INVOICE_ORDER io\nJOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId\nWHERE io.Status = 1\nGROUP BY YEAR(io.DateInvoiceOrder), MONTH(io.DateInvoiceOrder)\nORDER BY ano DESC, mes DESC",
-        "-- Top 20 clientes por faturamento:\nSELECT TOP 20\n  c.Name AS cliente,\n  c.DocumentNumber,\n  COUNT(DISTINCT io.Id) AS qtd_notas,\n  SUM(ii.TOTAL_SALE_PRICE) AS faturamento_total\nFROM veddara.EZ_VEDDARA_INVOICE_ORDER io\nJOIN veddara.EZ_VEDDARA_CUSTOMER_CUSTOMER c ON io.CustomerId = c.Id\nJOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId\nWHERE io.Status = 1\nGROUP BY c.Name, c.DocumentNumber\nORDER BY faturamento_total DESC"
+        "-- Faturamento mensal:\nSELECT\n  YEAR(io.DateInvoiceOrder) AS ano,\n  MONTH(io.DateInvoiceOrder) AS mes,\n  COUNT(DISTINCT io.Id) AS qtd_notas,\n  SUM(ii.TOTAL_SALE_PRICE) AS faturamento_total\nFROM veddara.EZ_VEDDARA_INVOICE_ORDER io\nJOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId\nWHERE io.Status = 100\nGROUP BY YEAR(io.DateInvoiceOrder), MONTH(io.DateInvoiceOrder)\nORDER BY ano DESC, mes DESC",
+        "-- Top 20 clientes por faturamento:\nSELECT TOP 20\n  c.Name AS cliente,\n  c.DocumentNumber,\n  COUNT(DISTINCT io.Id) AS qtd_notas,\n  SUM(ii.TOTAL_SALE_PRICE) AS faturamento_total\nFROM veddara.EZ_VEDDARA_INVOICE_ORDER io\nJOIN veddara.EZ_VEDDARA_CUSTOMER_CUSTOMER c ON io.CustomerId = c.Id\nJOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId\nWHERE io.Status = 100\nGROUP BY c.Name, c.DocumentNumber\nORDER BY faturamento_total DESC"
       ]
     },
     {
