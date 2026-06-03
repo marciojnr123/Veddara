@@ -59,7 +59,7 @@ export default function CatalogoPage() {
       {/* Header */}
       <header style={{ background: '#fff', borderBottom: '1px solid #e8edf3', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <VeddaraLogo height={40} />
+          <VeddaraLogo height={48} />
           <div style={{ width: 1, height: 24, background: '#e8edf3' }} />
           <div>
             <h1 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: 0, lineHeight: 1 }}>Catálogo de Dados</h1>

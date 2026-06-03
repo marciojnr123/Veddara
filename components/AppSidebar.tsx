@@ -155,7 +155,7 @@ function VeddaraLogoSvg() {
 }
 
 // Usa a imagem real (public/veddara-logo.png) e cai no SVG vetorial se o arquivo não existir
-export function VeddaraLogo({ height = 52 }: { height?: number }) {
+export function VeddaraLogo({ height = 70 }: { height?: number }) {
   const [erro, setErro] = useState(false)
   if (erro) return <VeddaraLogoSvg />
   return (
