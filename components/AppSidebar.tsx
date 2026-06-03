@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 
@@ -129,7 +130,7 @@ const NAV_ITEMS = [
   },
 ]
 
-function VeddaraLogo() {
+function VeddaraLogoSvg() {
   return (
     <svg viewBox="0 0 220 44" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ height: 30, width: 'auto' }}>
       <defs>
@@ -150,6 +151,21 @@ function VeddaraLogo() {
         VEDDARA
       </text>
     </svg>
+  )
+}
+
+// Usa a imagem real (public/veddara-logo.png) e cai no SVG vetorial se o arquivo não existir
+export function VeddaraLogo({ height = 34 }: { height?: number }) {
+  const [erro, setErro] = useState(false)
+  if (erro) return <VeddaraLogoSvg />
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/veddara-logo.png"
+      alt="VEDDARA"
+      style={{ height, width: 'auto', display: 'block' }}
+      onError={() => setErro(true)}
+    />
   )
 }
 

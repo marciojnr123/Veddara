@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { Catalog, CatalogEntry } from '@/lib/catalog-types'
+import { VeddaraLogo } from '@/components/AppSidebar'
 
 export default function CatalogoPage() {
   const router = useRouter()
@@ -58,16 +59,7 @@ export default function CatalogoPage() {
       {/* Header */}
       <header style={{ background: '#fff', borderBottom: '1px solid #e8edf3', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <svg viewBox="0 0 220 44" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ height: 26, width: 'auto' }}>
-            <defs>
-              <linearGradient id="cat-grad" x1="0" y1="0" x2="220" y2="0" gradientUnits="userSpaceOnUse">
-                <stop offset="0%"   stopColor="#4B6FE4"/>
-                <stop offset="50%"  stopColor="#3EA8D8"/>
-                <stop offset="100%" stopColor="#42C9BF"/>
-              </linearGradient>
-            </defs>
-            <text x="0" y="36" fontFamily="'Plus Jakarta Sans', system-ui, sans-serif" fontWeight="800" fontSize="40" letterSpacing="-1" fill="url(#cat-grad)">VEDDARA</text>
-          </svg>
+          <VeddaraLogo height={28} />
           <div style={{ width: 1, height: 24, background: '#e8edf3' }} />
           <div>
             <h1 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: 0, lineHeight: 1 }}>Catálogo de Dados</h1>
