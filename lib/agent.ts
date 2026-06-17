@@ -9,7 +9,10 @@ function headers() {
 }
 
 export async function agentHealth(): Promise<{ status: string; db: string }> {
-  const res = await fetch(`${AGENT_URL}/health`, { headers: headers() })
+  const res = await fetch(`${AGENT_URL}/health`, {
+    headers: headers(),
+    signal: AbortSignal.timeout(5000),
+  })
   if (!res.ok) throw new Error(`Agent health check failed: ${res.status}`)
   return res.json()
 }
