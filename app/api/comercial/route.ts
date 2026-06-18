@@ -26,7 +26,11 @@ export interface DadosComercial {
   novosClientes: Array<{ ano: string; qtd: number }>
 }
 
-const ST = 'Status = 100' // status de documento válido/finalizado
+// Faturamento alinhado ao relatório do BI: nota com Status 1 ou 100 (inclui
+// pendentes/NF 999999), item com Status 1 e ItemCode >= 1 (inclui frete,
+// exclui linhas de item inválidas).
+const ST = 'Status IN (1, 100)'
+const ITEMF = 'AND ii.Status = 1 AND ii.ItemCode >= 1'
 
 const num = (v: unknown): number => {
   const n = Number(v)
@@ -84,13 +88,13 @@ export async function GET(req: NextRequest) {
         SELECT SUM(ii.TOTAL_SALE_PRICE) AS fat, COUNT(DISTINCT io.Id) AS notas
         FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
         JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
-        WHERE io.${ST} ${fInvoice}`, 10),
+        WHERE io.${ST} ${ITEMF} ${fInvoice}`, 10),
       // 1: faturamento anual
       agentQuery(`
         SELECT YEAR(io.DateInvoiceOrder) AS ano, SUM(ii.TOTAL_SALE_PRICE) AS fat, COUNT(DISTINCT io.Id) AS notas
         FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
         JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
-        WHERE io.${ST} ${fInvoice}
+        WHERE io.${ST} ${ITEMF} ${fInvoice}
         GROUP BY YEAR(io.DateInvoiceOrder)
         ORDER BY ano`, 100),
       // 2: faturamento mensal
@@ -99,7 +103,7 @@ export async function GET(req: NextRequest) {
                SUM(ii.TOTAL_SALE_PRICE) AS fat, COUNT(DISTINCT io.Id) AS notas
         FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
         JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
-        WHERE io.${ST} ${fMensal}
+        WHERE io.${ST} ${ITEMF} ${fMensal}
         GROUP BY YEAR(io.DateInvoiceOrder)*100 + MONTH(io.DateInvoiceOrder)
         ORDER BY anomes`, 200),
       // 3: top clientes
@@ -108,7 +112,7 @@ export async function GET(req: NextRequest) {
         FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
         JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
         JOIN veddara.EZ_VEDDARA_CUSTOMER_CUSTOMER c ON io.CustomerId = c.Id
-        WHERE io.${ST} ${fInvoice}
+        WHERE io.${ST} ${ITEMF} ${fInvoice}
         GROUP BY c.Name
         ORDER BY fat DESC`, 50),
       // 4: top vendedores
@@ -118,7 +122,7 @@ export async function GET(req: NextRequest) {
         FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
         JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
         JOIN veddara.EZ_VEDDARA_SALE_SALESPERSON sp ON io.SalespersonId = sp.Id
-        WHERE io.${ST} ${fInvoice}
+        WHERE io.${ST} ${ITEMF} ${fInvoice}
         GROUP BY sp.Firstname, sp.LastName
         ORDER BY fat DESC`, 50),
       // 5: top produtos
@@ -126,7 +130,7 @@ export async function GET(req: NextRequest) {
         SELECT TOP 10 ii.Description AS nome, SUM(ii.TOTAL_SALE_PRICE) AS fat
         FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
         JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
-        WHERE io.${ST} ${fInvoice}
+        WHERE io.${ST} ${ITEMF} ${fInvoice}
         GROUP BY ii.Description
         ORDER BY fat DESC`, 50),
       // 6: funil de orçamentos (por data do orçamento)
@@ -155,7 +159,7 @@ export async function GET(req: NextRequest) {
         SELECT SUM(ii.TOTAL_SALE_PRICE) AS fat
         FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
         JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
-        WHERE io.${ST} AND io.DateInvoiceOrder >= '${prevInicio}' AND io.DateInvoiceOrder < '${prevFimMais1}'`, 10))
+        WHERE io.${ST} ${ITEMF} AND io.DateInvoiceOrder >= '${prevInicio}' AND io.DateInvoiceOrder < '${prevFimMais1}'`, 10))
     }
 
     // Faturamento diário (só quando o período é de um único mês)
@@ -167,7 +171,7 @@ export async function GET(req: NextRequest) {
                SUM(ii.TOTAL_SALE_PRICE) AS fat, COUNT(DISTINCT io.Id) AS notas
         FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
         JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
-        WHERE io.${ST} ${fInvoice}
+        WHERE io.${ST} ${ITEMF} ${fInvoice}
         GROUP BY YEAR(io.DateInvoiceOrder)*10000 + MONTH(io.DateInvoiceOrder)*100 + DAY(io.DateInvoiceOrder)
         ORDER BY dia`, 100))
     }

@@ -96,7 +96,7 @@ export async function GET(req: NextRequest) {
         FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
         JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
         JOIN veddara.EZ_VEDDARA_CUSTOMER_CUSTOMER c ON io.CustomerId = c.Id
-        WHERE io.Status = 100 ${fData}
+        WHERE io.Status IN (1, 100) AND ii.Status = 1 AND ii.ItemCode >= 1 ${fData}
         GROUP BY c.MainAddressState
         ORDER BY faturamento DESC`, 200),
       // 2) Recompra mensal: clientes que compraram no mês e cuja 1ª compra
@@ -108,13 +108,13 @@ export async function GET(req: NextRequest) {
           SELECT DISTINCT io.CustomerId AS CustomerId,
                  YEAR(io.DateInvoiceOrder)*100 + MONTH(io.DateInvoiceOrder) AS anomes
           FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
-          WHERE io.Status = 100 ${fData}
+          WHERE io.Status IN (1, 100) ${fData}
         ) m
         JOIN (
           SELECT io2.CustomerId AS CustomerId,
                  MIN(YEAR(io2.DateInvoiceOrder)*100 + MONTH(io2.DateInvoiceOrder)) AS first_anomes
           FROM veddara.EZ_VEDDARA_INVOICE_ORDER io2
-          WHERE io2.Status = 100
+          WHERE io2.Status IN (1, 100)
           GROUP BY io2.CustomerId
         ) f ON f.CustomerId = m.CustomerId
         WHERE m.anomes > f.first_anomes
@@ -147,7 +147,7 @@ export async function GET(req: NextRequest) {
                SUM(ii.TOTAL_SALE_PRICE) AS fat
         FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
         JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
-        WHERE io.Status = 100 ${fData}
+        WHERE io.Status IN (1, 100) AND ii.Status = 1 AND ii.ItemCode >= 1 ${fData}
         GROUP BY io.PaymentTermId, YEAR(io.DateInvoiceOrder)*100 + MONTH(io.DateInvoiceOrder)
         ORDER BY anomes`, 2000)
 
