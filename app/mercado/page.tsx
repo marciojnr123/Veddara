@@ -408,13 +408,7 @@ export default function MercadoPage() {
             </div>
             {!dados ? <div className="kmkt-sk" style={{ height: 280 }} />
               : consignadoVazio ? (
-                <div className="kmkt-empty" style={{ height: 280, display: 'grid', placeItems: 'center', padding: '0 24px', lineHeight: 1.6 }}>
-                  <div>
-                    <div style={{ fontSize: 28, marginBottom: 8 }}>📦</div>
-                    Aguardando a tabela de condição de pagamento ser incluída no banco de análise.<br />
-                    Assim que estiver disponível, este gráfico é preenchido automaticamente.
-                  </div>
-                </div>
+                <div className="kmkt-empty" style={{ height: 280, display: 'grid', placeItems: 'center' }}>Sem dados no período</div>
               ) : (
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={modalidadeData} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
@@ -436,9 +430,7 @@ export default function MercadoPage() {
             </div>
             {!dados ? <div className="kmkt-sk" style={{ height: 280 }} />
               : consignadoVazio ? (
-                <div className="kmkt-empty" style={{ height: 280, display: 'grid', placeItems: 'center', padding: '0 20px', lineHeight: 1.6 }}>
-                  Resumo disponível assim que a tabela de condição de pagamento for incluída no banco.
-                </div>
+                <div className="kmkt-empty" style={{ height: 280, display: 'grid', placeItems: 'center' }}>Sem dados no período</div>
               ) : (
               <>
                 <div className="kmkt-resumo-top">

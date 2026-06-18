@@ -16,10 +16,17 @@ export interface DadosMercado {
   recompraMensal: Array<{ anomes: string; recompra: number }>
 }
 
-// Condição de pagamento que representa a VENDA CONSIGNADA (médico vende o produto).
-// Todo o resto é tratado como "importada" — assim consignada + importada = faturamento
-// total (Status=100), batendo com a aba Comercial.
-const CONDICOES_CONSIGNADO = new Set(['VENDA CONSIGNADA'])
+// UUID (fixo no ERP) da condição de pagamento "VENDA CONSIGNADA".
+// A tabela EZ_VEDDARA_FINANCIAL_PAYMENTTERM (que traduz UUID -> nome) não está
+// replicada no banco de análise, então identificamos a venda consignada
+// diretamente pelo PaymentTermId. Quando a tabela for replicada, dá pra trocar
+// por um JOIN em Description = 'VENDA CONSIGNADA'.
+// Todo o resto é "importada" — assim consignada + importada = faturamento total
+// (Status=100), batendo com a aba Comercial.
+const VENDA_CONSIGNADA_ID = '8D64213D-82F6-4353-A325-CD3CD0F7988D'
+// normaliza UUID (maiúsculo, só hex) pra comparar sem depender de traços/caixa
+const soHex = (v: unknown) => String(v ?? '').toUpperCase().replace(/[^0-9A-F]/g, '')
+const ALVO_CONSIGNADA = soHex(VENDA_CONSIGNADA_ID)
 
 const num = (v: unknown): number => {
   const n = Number(v)
@@ -135,25 +142,24 @@ export async function GET(req: NextRequest) {
     const consignado = { mensal: [] as Array<{ anomes: string; consignada: number; importada: number }>, totalConsignada: 0, totalImportada: 0, pctConsignada: 0, erro: null as string | null }
     try {
       const qConsig = await agentQuery(`
-        SELECT pt.Description AS cond,
+        SELECT io.PaymentTermId AS cond,
                YEAR(io.DateInvoiceOrder)*100 + MONTH(io.DateInvoiceOrder) AS anomes,
                SUM(ii.TOTAL_SALE_PRICE) AS fat
         FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
         JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
-        LEFT JOIN veddara.EZ_VEDDARA_FINANCIAL_PAYMENTTERM pt ON pt.Id = io.PaymentTermId
         WHERE io.Status = 100 ${fData}
-        GROUP BY pt.Description, YEAR(io.DateInvoiceOrder)*100 + MONTH(io.DateInvoiceOrder)
+        GROUP BY io.PaymentTermId, YEAR(io.DateInvoiceOrder)*100 + MONTH(io.DateInvoiceOrder)
         ORDER BY anomes`, 2000)
 
       const mensalMap: Record<string, { consignada: number; importada: number }> = {}
       let totalConsignada = 0, totalImportada = 0
       for (const r of qConsig.rows) {
-        const cond = String(r[0] ?? '').trim().toUpperCase()
+        const ehConsignada = soHex(r[0]) === ALVO_CONSIGNADA
         const anomes = String(r[1] ?? '')
         const fat = num(r[2])
         if (!anomes) continue
         if (!mensalMap[anomes]) mensalMap[anomes] = { consignada: 0, importada: 0 }
-        if (CONDICOES_CONSIGNADO.has(cond)) { mensalMap[anomes].consignada += fat; totalConsignada += fat }
+        if (ehConsignada) { mensalMap[anomes].consignada += fat; totalConsignada += fat }
         else { mensalMap[anomes].importada += fat; totalImportada += fat }
       }
       consignado.mensal = Object.entries(mensalMap)
