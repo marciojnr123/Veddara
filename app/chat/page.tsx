@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { AppSidebar } from '@/components/AppSidebar'
+import { AppSidebar, VeddaraLogo } from '@/components/AppSidebar'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ReferenceLine,
   AreaChart, Area, ResponsiveContainer,
@@ -49,7 +49,7 @@ const CSS = `
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   display: grid;
-  grid-template-columns: 150px 240px 1fr;
+  grid-template-columns: 150px 1fr;
   height: 100vh;
   overflow: hidden;
   background: var(--bg);
@@ -261,6 +261,7 @@ const CSS = `
   color: var(--ink);
 }
 .kc-title em { font-style: italic; color: var(--green); }
+.kc-brand-title { display: flex; align-items: center; gap: 14px; }
 .kc-topbar-right { display: flex; align-items: center; gap: 10px; }
 .kc-schema-btn {
   font-size: 12px;
@@ -1051,29 +1052,17 @@ export default function ChatPage() {
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
       {/* ── SIDEBAR ── */}
-      <AppSidebar />
-
-      {/* ── TOOLS (sugestões) ── */}
-      <aside className="kc-tools">
-        {/* Suggestions */}
-        <div className="kc-sugg-section">
-          <div className="kc-nav-label" style={{ color: '#a0aec0' }}>Sugestões</div>
-          <div className="kc-sugg-list">
-            {SUGESTOES.map(s => (
-              <button key={s} className="kc-sugg-btn" onClick={() => send(s)}>
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-      </aside>
+      <AppSidebar hideLogo />
 
       {/* ── MAIN ── */}
       <div className="kc-main">
 
         {/* Topbar */}
         <div className="kc-topbar">
-          <h1 className="kc-title">Chat <em>IA</em></h1>
+          <div className="kc-brand-title">
+            <VeddaraLogo height={38} />
+            <h1 className="kc-title">Chat <em>IA</em></h1>
+          </div>
           <div className="kc-topbar-right">
             {schemaLoaded && (
               <div className="kc-cache-dot">

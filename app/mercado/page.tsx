@@ -76,7 +76,7 @@ const CSS = `
 .kmkt-main { padding: 26px 30px 48px; display: flex; flex-direction: column; gap: 18px; min-width: 0; overflow-y: auto; }
 
 .kmkt-topbar { text-align: center; position: relative; }
-.kmkt-brand-top { display: flex; justify-content: center; margin-bottom: 12px; }
+.kmkt-brand-left { position: absolute; left: 0; top: 50%; transform: translateY(-50%); display: flex; align-items: center; }
 .kmkt-title {
   font-family: 'Instrument Serif', serif;
   font-size: 38px; font-weight: 400; letter-spacing: -0.02em;
@@ -293,7 +293,7 @@ export default function MercadoPage() {
       <main className="kmkt-main">
         {/* Header */}
         <div className="kmkt-topbar">
-          <div className="kmkt-brand-top"><VeddaraLogo height={44} /></div>
+          <div className="kmkt-brand-left"><VeddaraLogo height={70} /></div>
           <h1 className="kmkt-title">Análise <em>Geográfica &amp; Recompra</em></h1>
           <p className="kmkt-sub">Período: <strong>{labelPeriodo}</strong> · dados reais Sybase IQ</p>
           <button className="kmkt-refresh" onClick={() => carregar(inicio, fim)}>

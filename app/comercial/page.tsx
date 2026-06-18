@@ -70,7 +70,7 @@ const CSS = `
 .kcom-main { padding: 26px 30px 48px; display: flex; flex-direction: column; gap: 20px; min-width: 0; overflow-y: auto; }
 
 .kcom-topbar { display: flex; align-items: flex-start; justify-content: center; gap: 16px; flex-wrap: wrap; position: relative; text-align: center; }
-.kcom-brand-top { display: flex; justify-content: center; margin-bottom: 12px; }
+.kcom-brand-left { position: absolute; left: 0; top: 50%; transform: translateY(-50%); display: flex; align-items: center; }
 .kcom-title {
   font-family: 'Instrument Serif', serif;
   font-size: 38px; font-weight: 400; letter-spacing: -0.02em;
@@ -340,8 +340,8 @@ export default function ComercialPage() {
 
         {/* Header */}
         <div className="kcom-topbar">
+          <div className="kcom-brand-left"><VeddaraLogo height={70} /></div>
           <div>
-            <div className="kcom-brand-top"><VeddaraLogo height={44} /></div>
             <h1 className="kcom-title">Visão <em>Comercial</em></h1>
             <p className="kcom-sub">Período: <strong>{labelPeriodo}</strong> · dados reais Sybase IQ</p>
           </div>
