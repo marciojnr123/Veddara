@@ -8,6 +8,30 @@ export const REGRAS_NEGOCIO = `
 REGRAS DE NEGÓCIO — OBRIGATÓRIAS
 ══════════════════════════════════════════
 
+## REGRA 0 — EMPRESA (FILTRO OBRIGATÓRIO EM TODA CONSULTA)
+
+⚠️ A base contém dados de VÁRIAS empresas. SEMPRE filtre apenas a Veddara —
+caso contrário a consulta traz vendedores, clientes e faturamento de OUTRAS
+empresas (que não são da Veddara). Este filtro é OBRIGATÓRIO em TODA query:
+
+  SystemCustomerId = '929577C5-3B2C-459C-973E-C46211B8B251'
+
+A coluna SystemCustomerId existe nas tabelas de CABEÇALHO/CADASTRO:
+  • EZ_VEDDARA_INVOICE_ORDER      (ex.: io.SystemCustomerId)
+  • EZ_VEDDARA_SALE_ORDER         (so.SystemCustomerId)
+  • EZ_VEDDARA_ESTIMATE_ORDER     (eo.SystemCustomerId)
+  • EZ_VEDDARA_CUSTOMER_CUSTOMER  (c.SystemCustomerId)
+  • EZ_VEDDARA_SALE_SALESPERSON   (sp.SystemCustomerId)
+  • EZ_VEDDARA_CRM_RECORD
+
+As tabelas de ITEM (INVOICE_ITEM, SALE_ITEM, ESTIMATE_ITEM) e CUSTOM_VALUE
+NÃO têm SystemCustomerId — nesses casos, filtre pela tabela de cabeçalho com
+a qual elas fazem JOIN (ex.: io.SystemCustomerId no JOIN com INVOICE_ITEM).
+
+Exemplo:
+  WHERE io.Status = 100
+    AND io.SystemCustomerId = '929577C5-3B2C-459C-973E-C46211B8B251'
+
 ## REGRA 1 — FATURAMENTO: usar EZ_VEDDARA_INVOICE_ORDER + INVOICE_ITEM
 
 Toda vez que o usuário perguntar sobre faturamento, receita ou valor faturado,
