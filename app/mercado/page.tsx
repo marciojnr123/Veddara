@@ -402,7 +402,7 @@ export default function MercadoPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
                 <XAxis dataKey="label" {...axisProps} interval="preserveStartEnd" minTickGap={16} />
                 <YAxis tickFormatter={fmtAxis} {...axisProps} width={42} />
-                <Tooltip contentStyle={tooltipStyle} formatter={(v: number, n) => [fmtMoeda(Number(v)), n === 'direta' ? 'Venda direta' : 'Consignado']} labelStyle={{ color: 'var(--ink)', fontWeight: 700, marginBottom: 4 }} cursor={{ fill: 'rgba(148,163,184,.12)' }} />
+                <Tooltip contentStyle={tooltipStyle} formatter={(v, n) => [fmtMoeda(Number(v)), n === 'direta' ? 'Venda direta' : 'Consignado']} labelStyle={{ color: 'var(--ink)', fontWeight: 700, marginBottom: 4 }} cursor={{ fill: 'rgba(148,163,184,.12)' }} />
                 <Legend formatter={v => v === 'direta' ? 'Venda direta' : 'Consignado'} iconType="circle" wrapperStyle={{ fontSize: 12 }} />
                 <Bar dataKey="direta" stackId="a" fill="#2563EB" maxBarSize={36} />
                 <Bar dataKey="consignado" stackId="a" fill="#F97316" radius={[5, 5, 0, 0]} maxBarSize={36} />
@@ -448,7 +448,7 @@ export default function MercadoPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
               <XAxis dataKey="label" {...axisProps} interval="preserveStartEnd" minTickGap={20} />
               <YAxis tickFormatter={fmtNum} {...axisProps} width={42} />
-              <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [fmtNum(Number(v)), 'Clientes recompra']} labelStyle={{ color: 'var(--ink)', fontWeight: 700, marginBottom: 4 }} />
+              <Tooltip contentStyle={tooltipStyle} formatter={(v) => [fmtNum(Number(v)), 'Clientes recompra']} labelStyle={{ color: 'var(--ink)', fontWeight: 700, marginBottom: 4 }} />
               <Area type="monotone" dataKey="clientes" stroke="#2563EB" strokeWidth={2.5} fill="url(#kmkt-recompra)" />
             </AreaChart>
           </ResponsiveContainer>
