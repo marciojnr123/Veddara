@@ -24,6 +24,8 @@ export interface DadosMercado {
 // Todo o resto é "importada" — assim consignada + importada = faturamento total
 // (Status=100), batendo com a aba Comercial.
 const VENDA_CONSIGNADA_ID = '8D64213D-82F6-4353-A325-CD3CD0F7988D'
+// Empresa (tenant) Veddara — filtra dados de outras empresas que existem na base
+const EMPRESA_ID = '929577C5-3B2C-459C-973E-C46211B8B251'
 // normaliza UUID (maiúsculo, só hex) pra comparar sem depender de traços/caixa
 const soHex = (v: unknown) => String(v ?? '').toUpperCase().replace(/[^0-9A-F]/g, '')
 const ALVO_CONSIGNADA = soHex(VENDA_CONSIGNADA_ID)
@@ -96,7 +98,7 @@ export async function GET(req: NextRequest) {
         FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
         JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
         JOIN veddara.EZ_VEDDARA_CUSTOMER_CUSTOMER c ON io.CustomerId = c.Id
-        WHERE io.Status = 100 ${fData}
+        WHERE io.Status = 100 AND io.SystemCustomerId = '${EMPRESA_ID}' ${fData}
         GROUP BY c.MainAddressState
         ORDER BY faturamento DESC`, 200),
       // 2) Recompra mensal: clientes que compraram no mês e cuja 1ª compra
@@ -108,13 +110,13 @@ export async function GET(req: NextRequest) {
           SELECT DISTINCT io.CustomerId AS CustomerId,
                  YEAR(io.DateInvoiceOrder)*100 + MONTH(io.DateInvoiceOrder) AS anomes
           FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
-          WHERE io.Status = 100 ${fData}
+          WHERE io.Status = 100 AND io.SystemCustomerId = '${EMPRESA_ID}' ${fData}
         ) m
         JOIN (
           SELECT io2.CustomerId AS CustomerId,
                  MIN(YEAR(io2.DateInvoiceOrder)*100 + MONTH(io2.DateInvoiceOrder)) AS first_anomes
           FROM veddara.EZ_VEDDARA_INVOICE_ORDER io2
-          WHERE io2.Status = 100
+          WHERE io2.Status = 100 AND io2.SystemCustomerId = '${EMPRESA_ID}'
           GROUP BY io2.CustomerId
         ) f ON f.CustomerId = m.CustomerId
         WHERE m.anomes > f.first_anomes
@@ -147,7 +149,7 @@ export async function GET(req: NextRequest) {
                SUM(ii.TOTAL_SALE_PRICE) AS fat
         FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
         JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
-        WHERE io.Status = 100 ${fData}
+        WHERE io.Status = 100 AND io.SystemCustomerId = '${EMPRESA_ID}' ${fData}
         GROUP BY io.PaymentTermId, YEAR(io.DateInvoiceOrder)*100 + MONTH(io.DateInvoiceOrder)
         ORDER BY anomes`, 2000)
 
