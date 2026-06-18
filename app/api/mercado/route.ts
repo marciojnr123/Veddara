@@ -11,6 +11,7 @@ export interface DadosMercado {
     totalConsignada: number
     totalImportada: number
     pctConsignada: number
+    erro: string | null
   }
 }
 
@@ -78,30 +79,17 @@ export async function GET(req: NextRequest) {
     : ''
 
   try {
-    const [qEstado, qConsig] = await Promise.all([
-      // 1) Faturamento por estado (UF do cliente)
-      agentQuery(`
-        SELECT c.MainAddressState AS uf,
-               SUM(ii.TOTAL_SALE_PRICE) AS faturamento,
-               COUNT(DISTINCT io.Id)    AS notas
-        FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
-        JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
-        JOIN veddara.EZ_VEDDARA_CUSTOMER_CUSTOMER c ON io.CustomerId = c.Id
-        WHERE io.Status = 100 ${fData}
-        GROUP BY c.MainAddressState
-        ORDER BY faturamento DESC`, 200),
-      // 2) Faturamento por condição de pagamento x mês (consignada vs importada)
-      agentQuery(`
-        SELECT pt.Description AS cond,
-               YEAR(io.DateInvoiceOrder)*100 + MONTH(io.DateInvoiceOrder) AS anomes,
-               SUM(ii.TOTAL_SALE_PRICE) AS fat
-        FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
-        JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
-        LEFT JOIN veddara.EZ_VEDDARA_FINANCIAL_PAYMENTTERM pt ON pt.Id = io.PaymentTermId
-        WHERE io.Status = 100 ${fData}
-        GROUP BY pt.Description, YEAR(io.DateInvoiceOrder)*100 + MONTH(io.DateInvoiceOrder)
-        ORDER BY anomes`, 2000),
-    ])
+    // 1) Faturamento por estado (UF do cliente) — consulta principal do mapa
+    const qEstado = await agentQuery(`
+      SELECT c.MainAddressState AS uf,
+             SUM(ii.TOTAL_SALE_PRICE) AS faturamento,
+             COUNT(DISTINCT io.Id)    AS notas
+      FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
+      JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
+      JOIN veddara.EZ_VEDDARA_CUSTOMER_CUSTOMER c ON io.CustomerId = c.Id
+      WHERE io.Status = 100 ${fData}
+      GROUP BY c.MainAddressState
+      ORDER BY faturamento DESC`, 200)
 
     // ── Vendas por estado (consolida siglas + nomes completos na mesma UF) ──
     const acc: Record<string, { faturamento: number; notas: number }> = {}
@@ -118,30 +106,44 @@ export async function GET(req: NextRequest) {
       .map(([uf, v]) => ({ uf, faturamento: v.faturamento, notas: v.notas }))
       .sort((a, b) => b.faturamento - a.faturamento)
 
-    // ── Consignada vs importada (por mês) ──
-    const mensalMap: Record<string, { consignada: number; importada: number }> = {}
-    let totalConsignada = 0, totalImportada = 0
-    for (const r of qConsig.rows) {
-      const cond = String(r[0] ?? '').trim().toUpperCase()
-      const anomes = String(r[1] ?? '')
-      const fat = num(r[2])
-      if (!anomes) continue
-      if (!mensalMap[anomes]) mensalMap[anomes] = { consignada: 0, importada: 0 }
-      if (CONDICOES_CONSIGNADO.has(cond)) { mensalMap[anomes].consignada += fat; totalConsignada += fat }
-      else { mensalMap[anomes].importada += fat; totalImportada += fat }
-    }
-    const mensal = Object.entries(mensalMap)
-      .map(([anomes, v]) => ({ anomes, consignada: v.consignada, importada: v.importada }))
-      .sort((a, b) => a.anomes.localeCompare(b.anomes))
-    const totalGeral = totalConsignada + totalImportada
-    const pctConsignada = totalGeral > 0 ? (totalConsignada / totalGeral) * 100 : 0
+    // 2) Consignada vs importada (por mês) — NÃO-FATAL: se a tabela de condição
+    //    de pagamento não resolver, o mapa continua funcionando normalmente.
+    const consignado = { mensal: [] as Array<{ anomes: string; consignada: number; importada: number }>, totalConsignada: 0, totalImportada: 0, pctConsignada: 0, erro: null as string | null }
+    try {
+      const qConsig = await agentQuery(`
+        SELECT pt.Description AS cond,
+               YEAR(io.DateInvoiceOrder)*100 + MONTH(io.DateInvoiceOrder) AS anomes,
+               SUM(ii.TOTAL_SALE_PRICE) AS fat
+        FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
+        JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
+        LEFT JOIN veddara.EZ_VEDDARA_FINANCIAL_PAYMENTTERM pt ON pt.Id = io.PaymentTermId
+        WHERE io.Status = 100 ${fData}
+        GROUP BY pt.Description, YEAR(io.DateInvoiceOrder)*100 + MONTH(io.DateInvoiceOrder)
+        ORDER BY anomes`, 2000)
 
-    const dados: DadosMercado = {
-      periodo: { inicio, fim },
-      vendasPorEstado,
-      semUf,
-      consignado: { mensal, totalConsignada, totalImportada, pctConsignada },
+      const mensalMap: Record<string, { consignada: number; importada: number }> = {}
+      let totalConsignada = 0, totalImportada = 0
+      for (const r of qConsig.rows) {
+        const cond = String(r[0] ?? '').trim().toUpperCase()
+        const anomes = String(r[1] ?? '')
+        const fat = num(r[2])
+        if (!anomes) continue
+        if (!mensalMap[anomes]) mensalMap[anomes] = { consignada: 0, importada: 0 }
+        if (CONDICOES_CONSIGNADO.has(cond)) { mensalMap[anomes].consignada += fat; totalConsignada += fat }
+        else { mensalMap[anomes].importada += fat; totalImportada += fat }
+      }
+      consignado.mensal = Object.entries(mensalMap)
+        .map(([anomes, v]) => ({ anomes, consignada: v.consignada, importada: v.importada }))
+        .sort((a, b) => a.anomes.localeCompare(b.anomes))
+      consignado.totalConsignada = totalConsignada
+      consignado.totalImportada = totalImportada
+      const totalGeral = totalConsignada + totalImportada
+      consignado.pctConsignada = totalGeral > 0 ? (totalConsignada / totalGeral) * 100 : 0
+    } catch (e) {
+      consignado.erro = String(e)
     }
+
+    const dados: DadosMercado = { periodo: { inicio, fim }, vendasPorEstado, semUf, consignado }
     return NextResponse.json(dados)
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 })
