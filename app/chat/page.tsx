@@ -243,26 +243,25 @@ const CSS = `
 
 /* Top bar */
 .kc-topbar {
-  background: var(--surface);
-  border-bottom: 1px solid var(--line);
-  padding: 14px 24px;
+  background: transparent;
+  padding: 18px 24px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  justify-content: center;
+  position: relative;
   flex-shrink: 0;
 }
 .kc-title {
   font-family: 'Instrument Serif', serif;
-  font-size: 22px;
+  font-size: 30px;
   font-weight: 400;
   letter-spacing: -0.01em;
   margin: 0;
   color: var(--ink);
 }
 .kc-title em { font-style: italic; color: var(--green); }
-.kc-brand-title { display: flex; align-items: center; gap: 14px; }
-.kc-topbar-right { display: flex; align-items: center; gap: 10px; }
+.kc-brand-left { position: absolute; left: 24px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; }
+.kc-topbar-right { position: absolute; right: 24px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 10px; }
 .kc-schema-btn {
   font-size: 12px;
   font-weight: 600;
@@ -489,9 +488,8 @@ const CSS = `
 
 /* Input area */
 .kc-input-bar {
-  background: var(--surface);
-  border-top: 1px solid var(--line);
-  padding: 16px 24px;
+  background: transparent;
+  padding: 16px 24px 20px;
   flex-shrink: 0;
 }
 .kc-input-row {
@@ -1059,10 +1057,8 @@ export default function ChatPage() {
 
         {/* Topbar */}
         <div className="kc-topbar">
-          <div className="kc-brand-title">
-            <VeddaraLogo height={38} />
-            <h1 className="kc-title">Chat <em>IA</em></h1>
-          </div>
+          <div className="kc-brand-left"><VeddaraLogo height={52} /></div>
+          <h1 className="kc-title">Chat <em>IA</em></h1>
           <div className="kc-topbar-right">
             {schemaLoaded && (
               <div className="kc-cache-dot">
