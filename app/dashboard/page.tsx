@@ -26,14 +26,22 @@ const CSS = `
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 150px 260px 1fr;
   min-height: 100vh;
   background: var(--bg);
   color: var(--ink);
 }
 
+.k-tools {
+  display: flex; flex-direction: column; gap: 16px;
+  padding: 18px 12px; min-height: 0; height: 100vh; overflow-y: auto;
+  background: var(--surface); border-right: 1px solid var(--line);
+}
+
 .k-root[data-theme="light"] {
   --bg: oklch(0.97 0.008 95);
+  background: linear-gradient(135deg, #eaf1fc 0%, #f2f6fc 45%, #fdeee7 100%);
+  background-attachment: fixed;
   --surface: #ffffff;
   --surface-2: oklch(0.96 0.01 240);
   --ink: oklch(0.18 0.02 240);
@@ -536,7 +544,10 @@ export default function DashboardPage() {
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
       {/* ── SIDEBAR ── */}
-      <AppSidebar onLogout={handleLogout}>
+      <AppSidebar onLogout={handleLogout} />
+
+      {/* ── TOOLS (lista de tabelas + status do agente) ── */}
+      <aside className="k-tools">
 
         {/* Table list */}
         <div className="k-tables-section">
@@ -610,7 +621,7 @@ export default function DashboardPage() {
             </button>
           </div>
         </div>
-      </AppSidebar>
+      </aside>
 
       {/* ── MAIN ── */}
       <main className="k-main">

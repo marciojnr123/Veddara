@@ -168,6 +168,17 @@ const NAV_ITEMS = [
     ),
   },
   {
+    href: '/mercado',
+    label: 'Mercado',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M12 21a9 9 0 100-18 9 9 0 000 18z" stroke="currentColor" strokeWidth="1.8"/>
+        <path d="M3.5 9h17M3.5 15h17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+        <path d="M12 3c2.6 2.7 2.6 15.3 0 18M12 3c-2.6 2.7-2.6 15.3 0 18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    ),
+  },
+  {
     href: '/chat',
     label: 'Chat IA',
     icon: (

@@ -49,15 +49,23 @@ const CSS = `
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 150px 240px 1fr;
   height: 100vh;
   overflow: hidden;
   background: var(--bg);
   color: var(--ink);
 }
 
+.kc-tools {
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 18px 12px; min-height: 0; overflow-y: auto;
+  background: var(--surface); border-right: 1px solid var(--line);
+}
+
 .kc-root[data-theme="light"] {
   --bg: oklch(0.97 0.008 95);
+  background: linear-gradient(135deg, #eaf1fc 0%, #f2f6fc 45%, #fdeee7 100%);
+  background-attachment: fixed;
   --surface: #ffffff;
   --surface-2: oklch(0.96 0.01 240);
   --ink: oklch(0.18 0.02 240);
@@ -1043,7 +1051,10 @@ export default function ChatPage() {
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
       {/* ── SIDEBAR ── */}
-      <AppSidebar>
+      <AppSidebar />
+
+      {/* ── TOOLS (sugestões) ── */}
+      <aside className="kc-tools">
         {/* Suggestions */}
         <div className="kc-sugg-section">
           <div className="kc-nav-label" style={{ color: '#a0aec0' }}>Sugestões</div>
@@ -1055,7 +1066,7 @@ export default function ChatPage() {
             ))}
           </div>
         </div>
-      </AppSidebar>
+      </aside>
 
       {/* ── MAIN ── */}
       <div className="kc-main">
