@@ -13,6 +13,7 @@ export interface DadosMercado {
     pctConsignada: number
     erro: string | null
   }
+  recompraMensal: Array<{ anomes: string; recompra: number }>
 }
 
 // Condição de pagamento que representa a VENDA CONSIGNADA (médico vende o produto).
@@ -79,17 +80,40 @@ export async function GET(req: NextRequest) {
     : ''
 
   try {
-    // 1) Faturamento por estado (UF do cliente) — consulta principal do mapa
-    const qEstado = await agentQuery(`
-      SELECT c.MainAddressState AS uf,
-             SUM(ii.TOTAL_SALE_PRICE) AS faturamento,
-             COUNT(DISTINCT io.Id)    AS notas
-      FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
-      JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
-      JOIN veddara.EZ_VEDDARA_CUSTOMER_CUSTOMER c ON io.CustomerId = c.Id
-      WHERE io.Status = 100 ${fData}
-      GROUP BY c.MainAddressState
-      ORDER BY faturamento DESC`, 200)
+    const [qEstado, qRecompra] = await Promise.all([
+      // 1) Faturamento por estado (UF do cliente) — consulta principal do mapa
+      agentQuery(`
+        SELECT c.MainAddressState AS uf,
+               SUM(ii.TOTAL_SALE_PRICE) AS faturamento,
+               COUNT(DISTINCT io.Id)    AS notas
+        FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
+        JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
+        JOIN veddara.EZ_VEDDARA_CUSTOMER_CUSTOMER c ON io.CustomerId = c.Id
+        WHERE io.Status = 100 ${fData}
+        GROUP BY c.MainAddressState
+        ORDER BY faturamento DESC`, 200),
+      // 2) Recompra mensal: clientes que compraram no mês e cuja 1ª compra
+      //    (todo o histórico) foi ANTES daquele mês. m = compras no período;
+      //    f = mês da 1ª compra de cada cliente (sem filtro de data).
+      agentQuery(`
+        SELECT m.anomes, COUNT(DISTINCT m.CustomerId) AS recompra
+        FROM (
+          SELECT DISTINCT io.CustomerId AS CustomerId,
+                 YEAR(io.DateInvoiceOrder)*100 + MONTH(io.DateInvoiceOrder) AS anomes
+          FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
+          WHERE io.Status = 100 ${fData}
+        ) m
+        JOIN (
+          SELECT io2.CustomerId AS CustomerId,
+                 MIN(YEAR(io2.DateInvoiceOrder)*100 + MONTH(io2.DateInvoiceOrder)) AS first_anomes
+          FROM veddara.EZ_VEDDARA_INVOICE_ORDER io2
+          WHERE io2.Status = 100
+          GROUP BY io2.CustomerId
+        ) f ON f.CustomerId = m.CustomerId
+        WHERE m.anomes > f.first_anomes
+        GROUP BY m.anomes
+        ORDER BY m.anomes`, 500),
+    ])
 
     // ── Vendas por estado (consolida siglas + nomes completos na mesma UF) ──
     const acc: Record<string, { faturamento: number; notas: number }> = {}
@@ -143,7 +167,13 @@ export async function GET(req: NextRequest) {
       consignado.erro = String(e)
     }
 
-    const dados: DadosMercado = { periodo: { inicio, fim }, vendasPorEstado, semUf, consignado }
+    // ── Recompra mensal ──
+    const recompraMensal = qRecompra.rows
+      .map(r => ({ anomes: String(r[0] ?? ''), recompra: num(r[1]) }))
+      .filter(x => x.anomes)
+      .sort((a, b) => a.anomes.localeCompare(b.anomes))
+
+    const dados: DadosMercado = { periodo: { inicio, fim }, vendasPorEstado, semUf, consignado, recompraMensal }
     return NextResponse.json(dados)
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 })

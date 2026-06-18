@@ -33,16 +33,6 @@ function nomeMes(anomes: string): string {
   return `${m[mes - 1]}/${ano.slice(2)}`
 }
 
-/* ---------- dados FICTÍCIOS (apenas recompra, por enquanto) ---------- */
-const RECOMPRA = [
-  { label: 'Jul/25', clientes: 320 }, { label: 'Ago/25', clientes: 358 },
-  { label: 'Set/25', clientes: 372 }, { label: 'Out/25', clientes: 410 },
-  { label: 'Nov/25', clientes: 468 }, { label: 'Dez/25', clientes: 540 },
-  { label: 'Jan/26', clientes: 395 }, { label: 'Fev/26', clientes: 430 },
-  { label: 'Mar/26', clientes: 472 }, { label: 'Abr/26', clientes: 455 },
-  { label: 'Mai/26', clientes: 512 }, { label: 'Jun/26', clientes: 560 },
-]
-
 /* ---------- escala de cor do mapa ---------- */
 function lerp(a: number, b: number, t: number) { return Math.round(a + (b - a) * t) }
 function clamp01(t: number) { return t < 0 ? 0 : t > 1 ? 1 : t }
@@ -277,6 +267,9 @@ export default function MercadoPage() {
   // enquanto a tabela de condição de pagamento não estiver no banco, o consignado vem vazio
   const consignadoVazio = !!(dados && totalConsignada === 0 && totalImportada === 0)
 
+  // recompra mensal (dados reais)
+  const recompraData = (dados?.recompraMensal ?? []).map(m => ({ label: nomeMes(m.anomes), clientes: m.recompra }))
+
   const temFiltro = !!(inicio && fim)
   const labelPeriodo = temFiltro ? `${fmtDataBR(inicio)} – ${fmtDataBR(fim)}` : 'Histórico completo'
 
@@ -480,30 +473,33 @@ export default function MercadoPage() {
           </div>
         </div>
 
-        {/* Evolução de recompra (ainda dados de exemplo) */}
+        {/* Evolução de recompra (dados reais) */}
         <div className="kmkt-card">
           <div className="kmkt-card-hdr">
             <div>
               <h3 className="kmkt-card-title">Evolução de recompra</h3>
-              <span className="kmkt-card-note">Clientes que voltaram a comprar · por mês · dados de exemplo</span>
+              <span className="kmkt-card-note">Clientes que voltaram a comprar (compra após a 1ª) · por mês</span>
             </div>
-            <span className="kmkt-card-note" style={{ color: '#16a34a', fontWeight: 700 }}>▲ taxa de recompra 41%</span>
           </div>
-          <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={RECOMPRA} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
-              <defs>
-                <linearGradient id="kmkt-recompra" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#2563EB" stopOpacity={0.35} />
-                  <stop offset="100%" stopColor="#22C3DD" stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
-              <XAxis dataKey="label" {...axisProps} interval="preserveStartEnd" minTickGap={20} />
-              <YAxis tickFormatter={fmtNum} {...axisProps} width={42} />
-              <Tooltip contentStyle={tooltipStyle} formatter={(v) => [fmtNum(Number(v)), 'Clientes recompra']} labelStyle={{ color: 'var(--ink)', fontWeight: 700, marginBottom: 4 }} />
-              <Area type="monotone" dataKey="clientes" stroke="#2563EB" strokeWidth={2.5} fill="url(#kmkt-recompra)" />
-            </AreaChart>
-          </ResponsiveContainer>
+          {!dados ? <div className="kmkt-sk" style={{ height: 240 }} />
+            : recompraData.length === 0 ? <div className="kmkt-empty" style={{ height: 240, display: 'grid', placeItems: 'center' }}>Sem dados no período</div>
+            : (
+            <ResponsiveContainer width="100%" height={240}>
+              <AreaChart data={recompraData} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="kmkt-recompra" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#2563EB" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#22C3DD" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
+                <XAxis dataKey="label" {...axisProps} interval="preserveStartEnd" minTickGap={20} />
+                <YAxis tickFormatter={fmtNum} {...axisProps} width={42} />
+                <Tooltip contentStyle={tooltipStyle} formatter={(v) => [fmtNum(Number(v)), 'Clientes em recompra']} labelStyle={{ color: 'var(--ink)', fontWeight: 700, marginBottom: 4 }} />
+                <Area type="monotone" dataKey="clientes" stroke="#2563EB" strokeWidth={2.5} fill="url(#kmkt-recompra)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
       </main>
