@@ -304,7 +304,7 @@ export default function ComercialPage() {
         {/* Header */}
         <div className="kcom-topbar">
           <div>
-            <h1 className="kcom-title">Visão <em>Comercial</em></h1>
+            <h1 className="kcom-title">Visão <em>Comercial Veddara</em></h1>
             <p className="kcom-sub">Período: <strong>{labelPeriodo}</strong> · dados reais Sybase IQ</p>
           </div>
           <button className="kcom-refresh" onClick={() => carregar(inicio, fim)}>
