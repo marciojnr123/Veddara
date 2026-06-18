@@ -16,6 +16,8 @@ export interface DadosComercial {
     winRate: number
   }
   mensal: Array<{ anomes: string; faturamento: number; notas: number }>
+  diario: Array<{ dia: string; faturamento: number; notas: number }>
+  granularidade: 'mensal' | 'diario'
   anual: Array<{ ano: string; faturamento: number; notas: number }>
   topClientes: Array<{ nome: string; faturamento: number; notas: number }>
   topVendedores: Array<{ nome: string; faturamento: number; notas: number }>
@@ -51,6 +53,8 @@ export async function GET(req: NextRequest) {
   const inicio = validData(searchParams.get('inicio'))
   const fim = validData(searchParams.get('fim'))
   const temFiltro = !!(inicio && fim)
+  // período de um único mês (filtro "Mês" ou DE/ATÉ dentro do mesmo mês) → usa faturamento diário
+  const mesUnico = !!(inicio && fim && inicio.slice(0, 7) === fim.slice(0, 7))
 
   // Cláusula de período para colunas de data (data inclusiva no fim com +1 dia)
   const fimMais1 = fim ? toISO(new Date(new Date(fim + 'T00:00:00').getTime() + 86400000)) : null
@@ -154,8 +158,23 @@ export async function GET(req: NextRequest) {
         WHERE io.${ST} AND io.DateInvoiceOrder >= '${prevInicio}' AND io.DateInvoiceOrder < '${prevFimMais1}'`, 10))
     }
 
+    // Faturamento diário (só quando o período é de um único mês)
+    let idxDiario = -1
+    if (mesUnico) {
+      idxDiario = queries.length
+      queries.push(agentQuery(`
+        SELECT YEAR(io.DateInvoiceOrder)*10000 + MONTH(io.DateInvoiceOrder)*100 + DAY(io.DateInvoiceOrder) AS dia,
+               SUM(ii.TOTAL_SALE_PRICE) AS fat, COUNT(DISTINCT io.Id) AS notas
+        FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
+        JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
+        WHERE io.${ST} ${fInvoice}
+        GROUP BY YEAR(io.DateInvoiceOrder)*10000 + MONTH(io.DateInvoiceOrder)*100 + DAY(io.DateInvoiceOrder)
+        ORDER BY dia`, 100))
+    }
+
     const res = await Promise.all(queries)
     const [qPeriodo, qAnual, qMensal, qClientes, qVendedores, qProdutos, qFunil, qAtivos, qNovos, qPrev] = res
+    const qDiario = idxDiario >= 0 ? res[idxDiario] : null
 
     const faturamentoPeriodo = num(qPeriodo.rows[0]?.[0])
     const notasPeriodo = num(qPeriodo.rows[0]?.[1])
@@ -205,6 +224,8 @@ export async function GET(req: NextRequest) {
       },
       anual: qAnual.rows.map(r => ({ ano: str(r[0]), faturamento: num(r[1]), notas: num(r[2]) })),
       mensal: qMensal.rows.map(r => ({ anomes: str(r[0]), faturamento: num(r[1]), notas: num(r[2]) })),
+      diario: qDiario ? qDiario.rows.map(r => ({ dia: str(r[0]), faturamento: num(r[1]), notas: num(r[2]) })) : [],
+      granularidade: mesUnico ? 'diario' : 'mensal',
       topClientes: qClientes.rows.map(r => ({ nome: str(r[0]), faturamento: num(r[1]), notas: num(r[2]) })),
       topVendedores: qVendedores.rows.map(r => ({ nome: str(r[0]), faturamento: num(r[1]), notas: num(r[2]) })),
       topProdutos: qProdutos.rows.map(r => ({ nome: str(r[0]), faturamento: num(r[1]) })),
