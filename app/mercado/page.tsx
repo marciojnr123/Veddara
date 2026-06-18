@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  AreaChart, Area, CartesianGrid, Legend,
+  AreaChart, Area, CartesianGrid, Legend, PieChart, Pie, Cell,
 } from 'recharts'
 import { AppSidebar } from '@/components/AppSidebar'
 import type { DadosMercado } from '@/app/api/mercado/route'
@@ -27,22 +27,13 @@ function isoHoje(): string { return new Date().toISOString().slice(0, 10) }
 function isoAnoMesDia(a: number, m: number, d: number): string {
   return `${a}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
 }
+function nomeMes(anomes: string): string {
+  const m = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+  const ano = anomes.slice(0, 4); const mes = parseInt(anomes.slice(4), 10)
+  return `${m[mes - 1]}/${ano.slice(2)}`
+}
 
-/* ---------- dados FICTÍCIOS (apenas consignado + recompra, por enquanto) ---------- */
-const MESES_MODALIDADE = [
-  { label: 'Jul/25', direta: 880000, consignado: 120000 },
-  { label: 'Ago/25', direta: 920000, consignado: 140000 },
-  { label: 'Set/25', direta: 870000, consignado: 160000 },
-  { label: 'Out/25', direta: 1010000, consignado: 175000 },
-  { label: 'Nov/25', direta: 1180000, consignado: 210000 },
-  { label: 'Dez/25', direta: 1340000, consignado: 260000 },
-  { label: 'Jan/26', direta: 940000, consignado: 150000 },
-  { label: 'Fev/26', direta: 1020000, consignado: 165000 },
-  { label: 'Mar/26', direta: 1120000, consignado: 190000 },
-  { label: 'Abr/26', direta: 1060000, consignado: 180000 },
-  { label: 'Mai/26', direta: 1210000, consignado: 220000 },
-  { label: 'Jun/26', direta: 1280000, consignado: 240000 },
-]
+/* ---------- dados FICTÍCIOS (apenas recompra, por enquanto) ---------- */
 const RECOMPRA = [
   { label: 'Jul/25', clientes: 320 }, { label: 'Ago/25', clientes: 358 },
   { label: 'Set/25', clientes: 372 }, { label: 'Out/25', clientes: 410 },
@@ -163,9 +154,12 @@ const CSS = `
 .kmkt-rank-val { font-size: 12.5px; font-weight: 800; color: var(--ink); flex-shrink: 0; text-align: right; }
 .kmkt-empty { padding: 30px 10px; text-align: center; font-size: 12.5px; color: var(--ink-3); }
 
-.kmkt-hero-stat { background: linear-gradient(135deg, var(--orange) 0%, var(--orange-d) 100%); border-radius: var(--radius-sm); padding: 18px 20px; color: #fff; margin-bottom: 14px; }
-.kmkt-hero-stat .big { font-size: 34px; font-weight: 800; line-height: 1; letter-spacing: -.02em; }
-.kmkt-hero-stat .txt { font-size: 12px; color: rgba(255,255,255,.9); margin-top: 8px; line-height: 1.5; }
+.kmkt-resumo-top { display: flex; align-items: center; gap: 18px; margin-bottom: 16px; }
+.kmkt-donut { position: relative; width: 150px; height: 150px; flex-shrink: 0; }
+.kmkt-donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+.kmkt-donut-center .big { font-size: 27px; font-weight: 800; color: var(--orange-d); line-height: 1; }
+.kmkt-donut-center .lbl { font-size: 10.5px; color: var(--ink-3); margin-top: 3px; }
+.kmkt-resumo-txt { font-size: 13px; color: var(--ink-2); line-height: 1.55; margin: 0; }
 .kmkt-mini-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .kmkt-mini { background: rgba(255,255,255,.6); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
 .kmkt-mini-label { font-size: 10.5px; font-weight: 700; color: var(--ink-3); text-transform: uppercase; letter-spacing: .03em; }
@@ -266,6 +260,20 @@ export default function MercadoPage() {
     .sort((a, b) => b.val - a.val)
     .slice(0, 8)
   const maxTop = topEstados[0]?.val || 1
+  // top 5 estados (com venda) recebem contorno laranja no mapa
+  const top5 = new Set(topEstados.slice(0, 5).filter(e => e.val > 0).map(e => e.sigla))
+
+  // consignada vs importada (dados reais)
+  const modalidadeData = (dados?.consignado.mensal ?? []).map(m => ({
+    label: nomeMes(m.anomes), consignada: m.consignada, importada: m.importada,
+  }))
+  const totalConsignada = dados?.consignado.totalConsignada ?? 0
+  const totalImportada = dados?.consignado.totalImportada ?? 0
+  const pctConsignada = dados?.consignado.pctConsignada ?? 0
+  const donutData = [
+    { name: 'Venda consignada', value: totalConsignada },
+    { name: 'Importada', value: totalImportada },
+  ]
 
   const temFiltro = !!(inicio && fim)
   const labelPeriodo = temFiltro ? `${fmtDataBR(inicio)} – ${fmtDataBR(fim)}` : 'Histórico completo'
@@ -346,6 +354,10 @@ export default function MercadoPage() {
                         key={s.sigla}
                         d={s.d}
                         fill={colorFor(v, minV, maxV)}
+                        style={{
+                          stroke: top5.has(s.sigla) ? '#F97316' : '#ffffff',
+                          strokeWidth: top5.has(s.sigla) ? 2 : 0.8,
+                        }}
                         onMouseMove={e => {
                           const box = (e.currentTarget.ownerSVGElement!.parentElement as HTMLElement).getBoundingClientRect()
                           setHover({ x: e.clientX - box.left, y: e.clientY - box.top, sigla: s.sigla, name: s.name, val: v })
@@ -390,41 +402,67 @@ export default function MercadoPage() {
           </div>
         </div>
 
-        {/* Consignado vs venda direta + Resumo (ainda dados de exemplo) */}
+        {/* Venda consignada vs importada + Resumo consignado */}
         <div className="kmkt-row-cons">
           <div className="kmkt-card">
             <div className="kmkt-card-hdr">
-              <h3 className="kmkt-card-title">Consignado vs venda direta</h3>
-              <span className="kmkt-card-note">Faturamento mensal por modalidade · dados de exemplo</span>
+              <h3 className="kmkt-card-title">Venda consignada vs importada</h3>
+              <span className="kmkt-card-note">Faturamento mensal por modalidade</span>
             </div>
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={MESES_MODALIDADE} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
-                <XAxis dataKey="label" {...axisProps} interval="preserveStartEnd" minTickGap={16} />
-                <YAxis tickFormatter={fmtAxis} {...axisProps} width={42} />
-                <Tooltip contentStyle={tooltipStyle} formatter={(v, n) => [fmtMoeda(Number(v)), n === 'direta' ? 'Venda direta' : 'Consignado']} labelStyle={{ color: 'var(--ink)', fontWeight: 700, marginBottom: 4 }} cursor={{ fill: 'rgba(148,163,184,.12)' }} />
-                <Legend formatter={v => v === 'direta' ? 'Venda direta' : 'Consignado'} iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="direta" stackId="a" fill="#2563EB" maxBarSize={36} />
-                <Bar dataKey="consignado" stackId="a" fill="#F97316" radius={[5, 5, 0, 0]} maxBarSize={36} />
-              </BarChart>
-            </ResponsiveContainer>
+            {!dados ? <div className="kmkt-sk" style={{ height: 280 }} />
+              : modalidadeData.length === 0 ? <div className="kmkt-empty" style={{ height: 280, display: 'grid', placeItems: 'center' }}>Sem dados no período</div>
+              : (
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={modalidadeData} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
+                  <XAxis dataKey="label" {...axisProps} interval="preserveStartEnd" minTickGap={16} />
+                  <YAxis tickFormatter={fmtAxis} {...axisProps} width={42} />
+                  <Tooltip contentStyle={tooltipStyle} formatter={(v, n) => [fmtMoeda(Number(v)), n === 'consignada' ? 'Venda consignada' : 'Importada']} labelStyle={{ color: 'var(--ink)', fontWeight: 700, marginBottom: 4 }} cursor={{ fill: 'rgba(148,163,184,.12)' }} />
+                  <Legend formatter={v => v === 'consignada' ? 'Venda consignada' : 'Importada'} iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="importada" stackId="a" fill="#2563EB" maxBarSize={36} />
+                  <Bar dataKey="consignada" stackId="a" fill="#F97316" radius={[5, 5, 0, 0]} maxBarSize={36} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
 
           <div className="kmkt-card">
             <div className="kmkt-card-hdr">
               <h3 className="kmkt-card-title">Resumo consignado</h3>
-              <span className="kmkt-card-note">exemplo</span>
             </div>
-            <div className="kmkt-hero-stat">
-              <div className="big">78%</div>
-              <div className="txt">Dos itens enviados em consignação, 78% se converteram em venda no período.</div>
-            </div>
-            <div className="kmkt-mini-grid">
-              <div className="kmkt-mini orange"><div className="kmkt-mini-label">Vendas consignadas</div><div className="kmkt-mini-val">R$ 1.2 mi</div></div>
-              <div className="kmkt-mini"><div className="kmkt-mini-label">% do faturamento</div><div className="kmkt-mini-val">14.2%</div></div>
-              <div className="kmkt-mini orange"><div className="kmkt-mini-label">Devoluções</div><div className="kmkt-mini-val">22%</div></div>
-              <div className="kmkt-mini"><div className="kmkt-mini-label">Consign. em aberto</div><div className="kmkt-mini-val">R$ 286 mil</div></div>
-            </div>
+            {!dados ? <div className="kmkt-sk" style={{ height: 280 }} /> : (
+              <>
+                <div className="kmkt-resumo-top">
+                  <div className="kmkt-donut">
+                    <ResponsiveContainer width={150} height={150}>
+                      <PieChart>
+                        <Pie data={donutData} dataKey="value" innerRadius={52} outerRadius={72} startAngle={90} endAngle={-270} stroke="none" paddingAngle={totalConsignada > 0 ? 1 : 0}>
+                          <Cell fill="#F97316" />
+                          <Cell fill="#e8eef7" />
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="kmkt-donut-center">
+                      <div className="big">{pctConsignada.toFixed(0)}%</div>
+                      <div className="lbl">do faturamento</div>
+                    </div>
+                  </div>
+                  <p className="kmkt-resumo-txt">
+                    <b>{pctConsignada.toFixed(1)}%</b> do faturamento do período veio de <b>venda consignada</b>. O restante é venda importada.
+                  </p>
+                </div>
+                <div className="kmkt-mini-grid">
+                  <div className="kmkt-mini orange">
+                    <div className="kmkt-mini-label">Venda consignada</div>
+                    <div className="kmkt-mini-val">{fmtMoeda(totalConsignada)}</div>
+                  </div>
+                  <div className="kmkt-mini">
+                    <div className="kmkt-mini-label">Importada</div>
+                    <div className="kmkt-mini-val">{fmtMoeda(totalImportada)}</div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
