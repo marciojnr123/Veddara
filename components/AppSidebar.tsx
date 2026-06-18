@@ -6,17 +6,21 @@ import { usePathname, useRouter } from 'next/navigation'
 
 const SIDEBAR_CSS = `
 .app-sidebar {
-  background: #ffffff;
-  border-right: 1px solid #e8edf3;
-  padding: 24px 16px 20px;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 22px;
+  box-shadow: 0 10px 34px rgba(30, 50, 90, 0.10);
+  padding: 22px 14px 18px;
   display: flex;
   flex-direction: column;
   gap: 20px;
   position: sticky;
-  top: 0;
-  height: 100vh;
+  top: 16px;
+  margin: 16px;
+  height: calc(100vh - 32px);
   overflow: hidden;
-  width: 260px;
   box-sizing: border-box;
 }
 
@@ -87,6 +91,68 @@ const SIDEBAR_CSS = `
   flex-direction: column;
   gap: 12px;
 }
+
+/* ===== Compact (icon-only) rail ===== */
+.app-sidebar.compact {
+  margin: 0; height: 100vh; top: 0;
+  background: transparent; border: 0; box-shadow: none; border-radius: 0;
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+  overflow: visible; position: relative;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 22px 12px;
+}
+.app-brand {
+  align-self: flex-start;
+  margin: 0 0 0 4px; padding: 0;
+  display: flex; align-items: center; flex-shrink: 0;
+}
+.app-sidebar.compact .app-brand img,
+.app-sidebar.compact .app-brand svg {
+  width: 118px !important; height: auto !important; display: block;
+}
+.app-rail-card {
+  margin: auto 0;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 22px;
+  box-shadow: 0 10px 30px rgba(30, 50, 90, 0.12);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  padding: 10px 8px;
+}
+.app-rail-nav {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.app-rail-bottom {
+  position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
+  display: flex;
+}
+.app-rail-btn {
+  position: relative;
+  width: 40px; height: 40px; border-radius: 12px;
+  display: grid; place-items: center;
+  color: #9aa6b6; text-decoration: none;
+  background: transparent; border: 0; cursor: pointer; padding: 0;
+  transition: background .14s, color .14s, box-shadow .14s;
+}
+.app-rail-btn svg { width: 18px; height: 18px; }
+.app-rail-btn:hover { background: #eef2f7; color: #475569; }
+.app-rail-btn.active {
+  background: #0b1220; color: #ffffff;
+  box-shadow: 0 6px 16px rgba(11, 18, 32, 0.28);
+}
+.app-rail-btn::after {
+  content: attr(data-label);
+  position: absolute; left: calc(100% + 16px); top: 50%; transform: translateY(-50%);
+  background: #0b1220; color: #fff; font-size: 12px; font-weight: 600;
+  padding: 5px 10px; border-radius: 8px; white-space: nowrap;
+  opacity: 0; pointer-events: none; transition: opacity .12s; z-index: 60;
+}
+.app-rail-btn::before {
+  content: ''; position: absolute; left: calc(100% + 10px); top: 50%;
+  transform: translateY(-50%); border: 6px solid transparent;
+  border-right-color: #0b1220; opacity: 0; transition: opacity .12s;
+}
+.app-rail-btn:hover::after, .app-rail-btn:hover::before { opacity: 1; }
 `
 
 const NAV_ITEMS = [
@@ -177,6 +243,7 @@ interface AppSidebarProps {
 export function AppSidebar({ children, onLogout }: AppSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
+  const compact = !children
 
   function handleLogout() {
     if (onLogout) {
@@ -184,6 +251,41 @@ export function AppSidebar({ children, onLogout }: AppSidebarProps) {
       return
     }
     fetch('/api/auth/logout', { method: 'POST' }).then(() => router.push('/login'))
+  }
+
+  // Menu compacto (só ícones) — usado nas telas sem conteúdo extra na barra
+  if (compact) {
+    return (
+      <>
+        <style dangerouslySetInnerHTML={{ __html: SIDEBAR_CSS }} />
+        <aside className="app-sidebar compact">
+          <div className="app-brand">
+            <VeddaraLogo height={26} />
+          </div>
+          <div className="app-rail-card">
+            <nav className="app-rail-nav">
+              {NAV_ITEMS.map(item => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  data-label={item.label}
+                  className={`app-rail-btn ${pathname === item.href ? 'active' : ''}`}
+                >
+                  {item.icon}
+                </Link>
+              ))}
+            </nav>
+          </div>
+          <div className="app-rail-bottom">
+            <button className="app-rail-btn" data-label="Sair" onClick={handleLogout}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          </div>
+        </aside>
+      </>
+    )
   }
 
   return (

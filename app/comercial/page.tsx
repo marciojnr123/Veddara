@@ -45,7 +45,7 @@ const CSS = `
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 150px 1fr;
   min-height: 100vh;
   --bg: #f6f8fb;
   --surface: #ffffff;
@@ -59,14 +59,17 @@ const CSS = `
   --grad-c: #42C9BF;
   --radius: 18px;
   --radius-sm: 14px;
-  --shadow-sm: 0 1px 3px rgba(15,23,42,.05);
-  background: var(--bg);
+  --shadow-sm: 0 4px 20px rgba(30,50,90,.06);
+  background:
+    radial-gradient(1100px 620px at 0% -5%, #d8e6fb 0%, rgba(216,230,251,0) 55%),
+    radial-gradient(1000px 600px at 100% -8%, #fbe2d4 0%, rgba(251,226,212,0) 52%),
+    #f3f7fc;
   color: var(--ink);
 }
 
 .kcom-main { padding: 26px 30px 48px; display: flex; flex-direction: column; gap: 20px; min-width: 0; overflow-y: auto; }
 
-.kcom-topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.kcom-topbar { display: flex; align-items: flex-start; justify-content: center; gap: 16px; flex-wrap: wrap; position: relative; text-align: center; }
 .kcom-title {
   font-family: 'Instrument Serif', serif;
   font-size: 38px; font-weight: 400; letter-spacing: -0.02em;
@@ -74,7 +77,7 @@ const CSS = `
 }
 .kcom-title em {
   font-style: italic;
-  background: linear-gradient(90deg, var(--grad-a), var(--grad-b), var(--grad-c));
+  background: linear-gradient(90deg, #2f57c9, #4d82ef);
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
 }
 .kcom-sub { font-size: 13px; color: var(--ink-3); margin: 7px 0 0; }
@@ -115,12 +118,12 @@ const CSS = `
 /* KPI Grid */
 .kcom-kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
 .kcom-kpi {
-  background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--radius-sm); padding: 18px 20px;
+  background: rgba(255,255,255,.74); border: 1px solid rgba(255,255,255,.7);
+  border-radius: var(--radius); padding: 18px 20px; backdrop-filter: blur(10px);
   box-shadow: var(--shadow-sm); position: relative; overflow: hidden;
 }
 .kcom-kpi.hero {
-  background: linear-gradient(135deg, #4B6FE4 0%, #3EA8D8 55%, #42C9BF 100%);
+  background: linear-gradient(115deg, #4361d8 0%, #5e69cd 52%, #c2848f 82%, #efa886 100%);
   border: 0;
 }
 .kcom-kpi.hero .kcom-kpi-label { color: rgba(255,255,255,.8); }
@@ -134,11 +137,17 @@ const CSS = `
 .kcom-chip.down { background: #fee2e2; color: #dc2626; }
 .kcom-kpi.hero .kcom-chip.up { background: rgba(255,255,255,.22); color: #fff; }
 .kcom-kpi.hero .kcom-chip.down { background: rgba(255,255,255,.22); color: #fff; }
+.kcom-kpi-val.blue { color: #3b6fe4; }
+.kcom-kpi.warn { background: linear-gradient(135deg, #fff6f0 0%, #fde9da 100%); border-color: #f8ddc6; }
+.kcom-kpi.warn .kcom-kpi-label { color: #ef7e2e; }
+.kcom-kpi.warn .kcom-kpi-val   { color: #f2802a; }
+.kcom-kpi.warn .kcom-kpi-sub   { color: #e79a63; }
 
 /* Cards */
 .kcom-card {
-  background: var(--surface); border: 1px solid var(--line);
+  background: rgba(255,255,255,.74); border: 1px solid rgba(255,255,255,.7);
   border-radius: var(--radius); padding: 20px 22px; box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(10px);
 }
 .kcom-card-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .kcom-card-title { font-size: 14px; font-weight: 700; color: var(--ink); margin: 0; }
@@ -151,16 +160,17 @@ const CSS = `
 .kcom-rank { display: flex; flex-direction: column; gap: 11px; }
 .kcom-rank-row { display: flex; align-items: center; gap: 12px; }
 .kcom-rank-pos {
-  width: 22px; height: 22px; border-radius: 7px; flex-shrink: 0;
-  display: grid; place-items: center; font-size: 11px; font-weight: 800;
-  background: var(--surface-2); color: var(--ink-3);
+  width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
+  display: grid; place-items: center; font-size: 12px; font-weight: 800;
+  background: linear-gradient(135deg, #4b8ff0, #36b8e0); color: #fff;
 }
-.kcom-rank-pos.top { background: linear-gradient(135deg, var(--grad-a), var(--grad-c)); color: #fff; }
+.kcom-rank.vend .kcom-rank-pos { background: linear-gradient(135deg, #f7a44b, #ef7a2a); }
 .kcom-rank-body { flex: 1; min-width: 0; }
 .kcom-rank-name { font-size: 12.5px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kcom-rank-meta { font-size: 11px; color: var(--ink-3); margin-top: 1px; }
 .kcom-rank-bar-track { height: 6px; border-radius: 999px; background: var(--surface-2); margin-top: 5px; overflow: hidden; }
-.kcom-rank-bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--grad-a), var(--grad-c)); }
+.kcom-rank-bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #4b8ff0, #36b8e0); }
+.kcom-rank.vend .kcom-rank-bar-fill { background: linear-gradient(90deg, #f7a44b, #ef7a2a); }
 .kcom-rank-val { font-size: 12.5px; font-weight: 800; color: var(--ink); flex-shrink: 0; text-align: right; }
 .kcom-empty { padding: 30px 10px; text-align: center; font-size: 12.5px; color: var(--ink-3); }
 
@@ -197,7 +207,6 @@ const CSS = `
 }
 `
 
-const BAR_GRAD_ID = 'kcom-bar-grad'
 const AREA_GRAD_ID = 'kcom-area-grad'
 
 // Presets de período
@@ -212,6 +221,7 @@ export default function ComercialPage() {
   const [erro, setErro] = useState('')
   const [inicio, setInicio] = useState('')
   const [fim, setFim] = useState('')
+  const [mes, setMes] = useState('')
   const [presetAtivo, setPresetAtivo] = useState<string>('tudo')
 
   const carregar = useCallback((ini: string, f: string) => {
@@ -237,22 +247,32 @@ export default function ComercialPage() {
 
   function aplicarPreset(preset: string) {
     setPresetAtivo(preset)
+    setMes('')
     const hoje = new Date()
     const ano = hoje.getFullYear()
     let ini = '', f = ''
     if (preset === 'tudo') { ini = ''; f = '' }
     else if (preset === 'ano') { ini = isoAnoMesDia(ano, 1, 1); f = isoHoje() }
     else if (preset === 'anopassado') { ini = isoAnoMesDia(ano - 1, 1, 1); f = isoAnoMesDia(ano - 1, 12, 31) }
-    else if (preset === '12m') {
-      const d = new Date(hoje); d.setFullYear(d.getFullYear() - 1)
-      ini = d.toISOString().slice(0, 10); f = isoHoje()
-    }
     setInicio(ini); setFim(f)
+    carregar(ini, f)
+  }
+
+  function aplicarMes(valor: string) {
+    setMes(valor)
+    if (!valor) { aplicarPreset('tudo'); return }
+    const [a, m] = valor.split('-').map(Number)
+    const ultimoDia = new Date(a, m, 0).getDate()
+    const ini = isoAnoMesDia(a, m, 1)
+    const f = isoAnoMesDia(a, m, ultimoDia)
+    setInicio(ini); setFim(f)
+    setPresetAtivo('mes')
     carregar(ini, f)
   }
 
   function aplicarManual(novoInicio: string, novoFim: string) {
     setInicio(novoInicio); setFim(novoFim)
+    setMes('')
     setPresetAtivo(novoInicio && novoFim ? 'custom' : 'tudo')
     if (novoInicio && novoFim) carregar(novoInicio, novoFim)
     else if (!novoInicio && !novoFim) carregar('', '')
@@ -290,7 +310,6 @@ export default function ComercialPage() {
     { id: 'tudo', label: 'Tudo' },
     { id: 'ano', label: 'Este ano' },
     { id: 'anopassado', label: 'Ano passado' },
-    { id: '12m', label: '12 meses' },
   ]
 
   return (
@@ -304,10 +323,10 @@ export default function ComercialPage() {
         {/* Header */}
         <div className="kcom-topbar">
           <div>
-            <h1 className="kcom-title">Visão <em>Comercial Veddara</em></h1>
+            <h1 className="kcom-title">Visão <em>Comercial</em></h1>
             <p className="kcom-sub">Período: <strong>{labelPeriodo}</strong> · dados reais Sybase IQ</p>
           </div>
-          <button className="kcom-refresh" onClick={() => carregar(inicio, fim)}>
+          <button className="kcom-refresh" style={{ position: 'absolute', right: 0, top: 0 }} onClick={() => carregar(inicio, fim)}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
               <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
@@ -327,6 +346,15 @@ export default function ComercialPage() {
                 {p.label}
               </button>
             ))}
+          </div>
+          <div className="kcom-date-group">
+            <label>Mês</label>
+            <input
+              type="month"
+              className="kcom-date-input"
+              value={mes}
+              onChange={e => aplicarMes(e.target.value)}
+            />
           </div>
           <div className="kcom-date-group">
             <label>De</label>
@@ -424,7 +452,7 @@ export default function ComercialPage() {
             <div className="kcom-kpi-label">Orçamentos ganhos</div>
             {funil ? (
               <>
-                <div className="kcom-kpi-val">{fmtNum(funil.convertidos)}</div>
+                <div className="kcom-kpi-val blue">{fmtNum(funil.convertidos)}</div>
                 <div className="kcom-kpi-sub">Convertidos em pedido</div>
               </>
             ) : <div className="kcom-sk" style={{ height: 40 }} />}
@@ -440,7 +468,7 @@ export default function ComercialPage() {
             ) : <div className="kcom-sk" style={{ height: 40 }} />}
           </div>
 
-          <div className="kcom-kpi">
+          <div className="kcom-kpi warn">
             <div className="kcom-kpi-label">Orçamentos perdidos</div>
             {funil ? (
               <>
@@ -465,8 +493,13 @@ export default function ComercialPage() {
                 <AreaChart data={mensalData} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
                   <defs>
                     <linearGradient id={AREA_GRAD_ID} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#3EA8D8" stopOpacity={0.35} />
-                      <stop offset="100%" stopColor="#42C9BF" stopOpacity={0.02} />
+                      <stop offset="0%" stopColor="#6f9bf0" stopOpacity={0.30} />
+                      <stop offset="100%" stopColor="#6f9bf0" stopOpacity={0.02} />
+                    </linearGradient>
+                    <linearGradient id="kcom-line-grad" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#3b6fe4" />
+                      <stop offset="62%" stopColor="#4b7ae8" />
+                      <stop offset="100%" stopColor="#ef7a2a" />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
@@ -477,7 +510,7 @@ export default function ComercialPage() {
                     formatter={(v) => [fmtMoedaFull(Number(v)), 'Faturamento']}
                     labelStyle={{ color: 'var(--ink)', fontWeight: 700, marginBottom: 4 }}
                   />
-                  <Area type="monotone" dataKey="faturamento" stroke="#3EA8D8" strokeWidth={2.5} fill={`url(#${AREA_GRAD_ID})`} />
+                  <Area type="monotone" dataKey="faturamento" stroke="url(#kcom-line-grad)" strokeWidth={2.5} fill={`url(#${AREA_GRAD_ID})`} />
                 </AreaChart>
               </ResponsiveContainer>
             )}
@@ -494,9 +527,13 @@ export default function ComercialPage() {
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={anualData} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
                   <defs>
-                    <linearGradient id={BAR_GRAD_ID} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#4B6FE4" />
-                      <stop offset="100%" stopColor="#42C9BF" />
+                    <linearGradient id="kcom-bar-blue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#4b8ff0" />
+                      <stop offset="100%" stopColor="#33c2e2" />
+                    </linearGradient>
+                    <linearGradient id="kcom-bar-orange" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#f7a44b" />
+                      <stop offset="100%" stopColor="#ef7a2a" />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
@@ -508,7 +545,11 @@ export default function ComercialPage() {
                     formatter={(v) => [fmtMoedaFull(Number(v)), 'Faturamento']}
                     labelStyle={{ color: 'var(--ink)', fontWeight: 700, marginBottom: 4 }}
                   />
-                  <Bar dataKey="faturamento" fill={`url(#${BAR_GRAD_ID})`} radius={[6, 6, 0, 0]} maxBarSize={48} />
+                  <Bar dataKey="faturamento" radius={[6, 6, 0, 0]} maxBarSize={48}>
+                    {anualData.map((_, i) => (
+                      <Cell key={i} fill={i === anualData.length - 1 ? 'url(#kcom-bar-orange)' : 'url(#kcom-bar-blue)'} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -551,7 +592,7 @@ export default function ComercialPage() {
             {!dados ? <div className="kcom-sk" style={{ height: 360 }} />
               : dados.topVendedores.length === 0 ? <div className="kcom-empty">Sem dados no período</div>
               : (
-              <div className="kcom-rank">
+              <div className="kcom-rank vend">
                 {dados.topVendedores.map((v, i) => (
                   <div className="kcom-rank-row" key={v.nome + i}>
                     <div className={`kcom-rank-pos ${i < 3 ? 'top' : ''}`}>{i + 1}</div>
@@ -580,19 +621,19 @@ export default function ComercialPage() {
             {funil ? (
               <div className="kcom-funil">
                 <div className="kcom-funil-row">
-                  <div className="kcom-funil-bar" style={{ width: `${Math.max((funil.convertidos / funilMax) * 100, 6)}%`, background: 'linear-gradient(90deg,#16a34a,#22c55e)' }}>
+                  <div className="kcom-funil-bar" style={{ width: `${Math.max((funil.convertidos / funilMax) * 100, 6)}%`, background: 'linear-gradient(90deg,#3b6fe4,#4b8ff0)' }}>
                     {fmtNum(funil.convertidos)}
                   </div>
                   <div className="kcom-funil-side"><b>Ganhos</b> · convertidos em pedido</div>
                 </div>
                 <div className="kcom-funil-row">
-                  <div className="kcom-funil-bar" style={{ width: `${Math.max((funil.abertos / funilMax) * 100, 6)}%`, background: 'linear-gradient(90deg,#4B6FE4,#3EA8D8)' }}>
+                  <div className="kcom-funil-bar" style={{ width: `${Math.max((funil.abertos / funilMax) * 100, 6)}%`, background: 'linear-gradient(90deg,#36b8e0,#5bd0d0)' }}>
                     {fmtNum(funil.abertos)}
                   </div>
                   <div className="kcom-funil-side"><b>Em aberto</b> · {fmtMoeda(funil.valorPipeline)} em pipeline</div>
                 </div>
                 <div className="kcom-funil-row">
-                  <div className="kcom-funil-bar" style={{ width: `${Math.max((funil.perdidos / funilMax) * 100, 6)}%`, background: 'linear-gradient(90deg,#dc2626,#f87171)' }}>
+                  <div className="kcom-funil-bar" style={{ width: `${Math.max((funil.perdidos / funilMax) * 100, 6)}%`, background: 'linear-gradient(90deg,#ef7a2a,#f7a44b)' }}>
                     {fmtNum(funil.perdidos)}
                   </div>
                   <div className="kcom-funil-side"><b>Perdidos</b> · cancelados/expirados</div>
