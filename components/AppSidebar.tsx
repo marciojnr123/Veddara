@@ -249,9 +249,10 @@ export function VeddaraLogo({ height = 70 }: { height?: number }) {
 interface AppSidebarProps {
   children?: React.ReactNode
   onLogout?: () => void
+  hideLogo?: boolean
 }
 
-export function AppSidebar({ children, onLogout }: AppSidebarProps) {
+export function AppSidebar({ children, onLogout, hideLogo }: AppSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const compact = !children
@@ -270,9 +271,11 @@ export function AppSidebar({ children, onLogout }: AppSidebarProps) {
       <>
         <style dangerouslySetInnerHTML={{ __html: SIDEBAR_CSS }} />
         <aside className="app-sidebar compact">
-          <div className="app-brand">
-            <VeddaraLogo height={26} />
-          </div>
+          {!hideLogo && (
+            <div className="app-brand">
+              <VeddaraLogo height={26} />
+            </div>
+          )}
           <div className="app-rail-card">
             <nav className="app-rail-nav">
               {NAV_ITEMS.map(item => (

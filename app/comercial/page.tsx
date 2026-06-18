@@ -6,7 +6,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   AreaChart, Area, CartesianGrid, Cell,
 } from 'recharts'
-import { AppSidebar } from '@/components/AppSidebar'
+import { AppSidebar, VeddaraLogo } from '@/components/AppSidebar'
 import type { DadosComercial } from '@/app/api/comercial/route'
 
 function fmtMoeda(v: number): string {
@@ -70,6 +70,7 @@ const CSS = `
 .kcom-main { padding: 26px 30px 48px; display: flex; flex-direction: column; gap: 20px; min-width: 0; overflow-y: auto; }
 
 .kcom-topbar { display: flex; align-items: flex-start; justify-content: center; gap: 16px; flex-wrap: wrap; position: relative; text-align: center; }
+.kcom-brand-top { display: flex; justify-content: center; margin-bottom: 12px; }
 .kcom-title {
   font-family: 'Instrument Serif', serif;
   font-size: 38px; font-weight: 400; letter-spacing: -0.02em;
@@ -184,6 +185,18 @@ const CSS = `
 }
 .kcom-funil-side { font-size: 12px; color: var(--ink-3); flex-shrink: 0; }
 .kcom-funil-side b { color: var(--ink); font-size: 13px; }
+
+/* Funil de vendas (trapézios) */
+.kcom-funnel { display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 12px 0 6px; }
+.kcom-funnel-stage {
+  color: #fff; text-align: center; min-width: 150px;
+  padding: 12px 22px 14px;
+  clip-path: polygon(0 0, 100% 0, 92% 100%, 8% 100%);
+  display: flex; flex-direction: column; gap: 2px;
+  transition: width .3s;
+}
+.kcom-funnel-stage-main { font-size: 15px; font-weight: 800; letter-spacing: -.01em; }
+.kcom-funnel-stage-sub { font-size: 11px; font-weight: 500; opacity: .92; }
 
 /* Tabela produtos */
 .kcom-tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
@@ -321,13 +334,14 @@ export default function ComercialPage() {
     <div className="kcom-root">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
-      <AppSidebar />
+      <AppSidebar hideLogo />
 
       <main className="kcom-main">
 
         {/* Header */}
         <div className="kcom-topbar">
           <div>
+            <div className="kcom-brand-top"><VeddaraLogo height={44} /></div>
             <h1 className="kcom-title">Visão <em>Comercial</em></h1>
             <p className="kcom-sub">Período: <strong>{labelPeriodo}</strong> · dados reais Sybase IQ</p>
           </div>
@@ -620,31 +634,28 @@ export default function ComercialPage() {
         <div className="kcom-row2">
           <div className="kcom-card">
             <div className="kcom-card-hdr">
-              <h3 className="kcom-card-title">Funil de orçamentos</h3>
+              <h3 className="kcom-card-title">Funil de vendas</h3>
               <span className="kcom-card-note">{temFiltro ? 'No período' : 'Histórico'}</span>
             </div>
-            {funil ? (
-              <div className="kcom-funil">
-                <div className="kcom-funil-row">
-                  <div className="kcom-funil-bar" style={{ width: `${Math.max((funil.convertidos / funilMax) * 100, 6)}%`, background: 'linear-gradient(90deg,#3b6fe4,#4b8ff0)' }}>
-                    {fmtNum(funil.convertidos)}
-                  </div>
-                  <div className="kcom-funil-side"><b>Ganhos</b> · convertidos em pedido</div>
+            {funil ? (() => {
+              const totalFunil = funil.convertidos + funil.abertos + funil.perdidos
+              const stages = [
+                { label: 'Ganhos', sub: 'convertidos em pedido', val: funil.convertidos, grad: 'linear-gradient(135deg,#3b6fe4,#4b8ff0)' },
+                { label: 'Perdidos', sub: 'cancelados / expirados', val: funil.perdidos, grad: 'linear-gradient(135deg,#ef7a2a,#f7a44b)' },
+                { label: 'Em aberto', sub: `${fmtMoeda(funil.valorPipeline)} em pipeline`, val: funil.abertos, grad: 'linear-gradient(135deg,#36b8e0,#5bd0d0)' },
+              ]
+              const maxV = Math.max(...stages.map(s => s.val), 1)
+              return (
+                <div className="kcom-funnel">
+                  {stages.map(s => (
+                    <div key={s.label} className="kcom-funnel-stage" style={{ width: `${Math.max((s.val / maxV) * 100, 38)}%`, background: s.grad }}>
+                      <div className="kcom-funnel-stage-main">{s.label} · {fmtNum(s.val)}</div>
+                      <div className="kcom-funnel-stage-sub">{totalFunil > 0 ? ((s.val / totalFunil) * 100).toFixed(1) : '0'}% · {s.sub}</div>
+                    </div>
+                  ))}
                 </div>
-                <div className="kcom-funil-row">
-                  <div className="kcom-funil-bar" style={{ width: `${Math.max((funil.abertos / funilMax) * 100, 6)}%`, background: 'linear-gradient(90deg,#36b8e0,#5bd0d0)' }}>
-                    {fmtNum(funil.abertos)}
-                  </div>
-                  <div className="kcom-funil-side"><b>Em aberto</b> · {fmtMoeda(funil.valorPipeline)} em pipeline</div>
-                </div>
-                <div className="kcom-funil-row">
-                  <div className="kcom-funil-bar" style={{ width: `${Math.max((funil.perdidos / funilMax) * 100, 6)}%`, background: 'linear-gradient(90deg,#ef7a2a,#f7a44b)' }}>
-                    {fmtNum(funil.perdidos)}
-                  </div>
-                  <div className="kcom-funil-side"><b>Perdidos</b> · cancelados/expirados</div>
-                </div>
-              </div>
-            ) : <div className="kcom-sk" style={{ height: 160 }} />}
+              )
+            })() : <div className="kcom-sk" style={{ height: 160 }} />}
           </div>
 
           <div className="kcom-card">

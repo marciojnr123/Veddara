@@ -6,7 +6,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   AreaChart, Area, CartesianGrid, Legend, PieChart, Pie, Cell,
 } from 'recharts'
-import { AppSidebar } from '@/components/AppSidebar'
+import { AppSidebar, VeddaraLogo } from '@/components/AppSidebar'
 import type { DadosMercado } from '@/app/api/mercado/route'
 
 /* ---------- helpers de formatação ---------- */
@@ -76,6 +76,7 @@ const CSS = `
 .kmkt-main { padding: 26px 30px 48px; display: flex; flex-direction: column; gap: 18px; min-width: 0; overflow-y: auto; }
 
 .kmkt-topbar { text-align: center; position: relative; }
+.kmkt-brand-top { display: flex; justify-content: center; margin-bottom: 12px; }
 .kmkt-title {
   font-family: 'Instrument Serif', serif;
   font-size: 38px; font-weight: 400; letter-spacing: -0.02em;
@@ -248,7 +249,7 @@ export default function MercadoPage() {
   const topEstados = (geo?.states ?? [])
     .map(s => ({ ...s, val: vendas[s.sigla] ?? 0 }))
     .sort((a, b) => b.val - a.val)
-    .slice(0, 8)
+    .slice(0, 20)
   const maxTop = topEstados[0]?.val || 1
   // top 5 estados (com venda) recebem contorno laranja no mapa
   const top5 = new Set(topEstados.slice(0, 5).filter(e => e.val > 0).map(e => e.sigla))
@@ -287,11 +288,12 @@ export default function MercadoPage() {
     <div className="kmkt-root">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
-      <AppSidebar />
+      <AppSidebar hideLogo />
 
       <main className="kmkt-main">
         {/* Header */}
         <div className="kmkt-topbar">
+          <div className="kmkt-brand-top"><VeddaraLogo height={44} /></div>
           <h1 className="kmkt-title">Análise <em>Geográfica &amp; Recompra</em></h1>
           <p className="kmkt-sub">Período: <strong>{labelPeriodo}</strong> · dados reais Sybase IQ</p>
           <button className="kmkt-refresh" onClick={() => carregar(inicio, fim)}>
