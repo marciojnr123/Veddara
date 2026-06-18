@@ -274,6 +274,8 @@ export default function MercadoPage() {
     { name: 'Venda consignada', value: totalConsignada },
     { name: 'Importada', value: totalImportada },
   ]
+  // enquanto a tabela de condição de pagamento não estiver no banco, o consignado vem vazio
+  const consignadoVazio = !!(dados && totalConsignada === 0 && totalImportada === 0)
 
   const temFiltro = !!(inicio && fim)
   const labelPeriodo = temFiltro ? `${fmtDataBR(inicio)} – ${fmtDataBR(fim)}` : 'Histórico completo'
@@ -410,8 +412,15 @@ export default function MercadoPage() {
               <span className="kmkt-card-note">Faturamento mensal por modalidade</span>
             </div>
             {!dados ? <div className="kmkt-sk" style={{ height: 280 }} />
-              : modalidadeData.length === 0 ? <div className="kmkt-empty" style={{ height: 280, display: 'grid', placeItems: 'center' }}>Sem dados no período</div>
-              : (
+              : consignadoVazio ? (
+                <div className="kmkt-empty" style={{ height: 280, display: 'grid', placeItems: 'center', padding: '0 24px', lineHeight: 1.6 }}>
+                  <div>
+                    <div style={{ fontSize: 28, marginBottom: 8 }}>📦</div>
+                    Aguardando a tabela de condição de pagamento ser incluída no banco de análise.<br />
+                    Assim que estiver disponível, este gráfico é preenchido automaticamente.
+                  </div>
+                </div>
+              ) : (
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={modalidadeData} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
@@ -430,7 +439,12 @@ export default function MercadoPage() {
             <div className="kmkt-card-hdr">
               <h3 className="kmkt-card-title">Resumo consignado</h3>
             </div>
-            {!dados ? <div className="kmkt-sk" style={{ height: 280 }} /> : (
+            {!dados ? <div className="kmkt-sk" style={{ height: 280 }} />
+              : consignadoVazio ? (
+                <div className="kmkt-empty" style={{ height: 280, display: 'grid', placeItems: 'center', padding: '0 20px', lineHeight: 1.6 }}>
+                  Resumo disponível assim que a tabela de condição de pagamento for incluída no banco.
+                </div>
+              ) : (
               <>
                 <div className="kmkt-resumo-top">
                   <div className="kmkt-donut">
