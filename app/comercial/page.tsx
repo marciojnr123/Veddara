@@ -302,7 +302,7 @@ export default function ComercialPage() {
         <div className="kcom-topbar">
           <div className="kcom-brand-left"><VeddaraLogo height={70} /></div>
           <div>
-            <h1 className="kcom-title">Visão <em>Comercial</em></h1>
+            <h1 className="kcom-title"><em>Comercial</em></h1>
             <p className="kcom-sub">Período: <strong>{labelPeriodo}</strong> · dados reais Sybase IQ</p>
           </div>
           <button className="kcom-refresh" style={{ position: 'absolute', right: 0, top: 0 }} onClick={() => carregar(inicio, fim)}>

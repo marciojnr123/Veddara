@@ -5,7 +5,7 @@ import { agentQuery } from '@/lib/agent'
 export type CatVend = 'b2b' | 'b2c' | 'sem' | 'parceiro'
 export interface DadosVendedores {
   periodo: { inicio: string | null; fim: string | null }
-  vendedores: Array<{ nome: string; cat: CatVend; fat: number; notas: number; clientes: number; comissao: number; ganhos: number; perdidos: number }>
+  vendedores: Array<{ id: string; nome: string; cat: CatVend; fat: number; notas: number; clientes: number; comissao: number; ganhos: number; perdidos: number }>
   rankAno: Array<{ nome: string; fat: number }>
   rankMes: Array<{ nome: string; fat: number }>
   mensalCanal: Array<{ anomes: string; b2b: number; b2c: number; sem: number; parceiro: number }>
@@ -64,7 +64,8 @@ export async function GET(req: NextRequest) {
       SELECT ${SEL_VEND} AS nome,
              SUM(ii.TOTAL_SALE_PRICE) AS fat,
              COUNT(DISTINCT io.Id) AS notas,
-             COUNT(DISTINCT io.CustomerId) AS clientes
+             COUNT(DISTINCT io.CustomerId) AS clientes,
+             MIN(sp.Id) AS id
       FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
       JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
       JOIN veddara.EZ_VEDDARA_SALE_SALESPERSON sp ON io.SalespersonId = sp.Id
@@ -109,7 +110,7 @@ export async function GET(req: NextRequest) {
     const vendedores = qVend.rows.map(r => {
       const nome = str(r[0])
       return {
-        nome, cat: categoria(nome),
+        id: str(r[4]), nome, cat: categoria(nome),
         fat: num(r[1]), notas: num(r[2]), clientes: num(r[3]), comissao: 0,
         ganhos: orc[nome]?.ganhos ?? 0, perdidos: orc[nome]?.perdidos ?? 0,
       }

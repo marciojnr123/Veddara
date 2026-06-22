@@ -4,10 +4,12 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line, Legend,
+  BarChart, Bar, PieChart, Pie, Cell,
 } from 'recharts'
 import { AppSidebar, VeddaraLogo } from '@/components/AppSidebar'
 import { DateFilter } from '@/components/DateFilter'
 import type { DadosVendedores, CatVend } from '@/app/api/vendedores/route'
+import type { DetalheVendedor } from '@/app/api/vendedores/detalhe/route'
 
 /* ---------- helpers ---------- */
 function fmtMoeda(v: number): string {
@@ -94,6 +96,12 @@ const CSS = `
 .kvnd-sk { border-radius: 12px; background: #eef3fc; animation: kvnd-pulse 1.4s ease-in-out infinite; }
 @keyframes kvnd-pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
 .kvnd-soon { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--orange-d); background: #fff1e7; padding: 3px 9px; border-radius: 999px; }
+.kvnd-ind { display: grid; gap: 16px; }
+.kvnd-donut { position: relative; width: 132px; height: 132px; margin: 2px auto 0; }
+.kvnd-donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+.kvnd-donut-center .big { font-size: 24px; font-weight: 800; line-height: 1; }
+.kvnd-donut-center .lbl { font-size: 10px; color: var(--ink-3); margin-top: 2px; }
+.kvnd-mes { font-size: 30px; font-weight: 800; letter-spacing: -.02em; line-height: 1; }
 
 @media (max-width: 1100px) { .kvnd-kpi-grid { grid-template-columns: repeat(2, 1fr); } .kvnd-row { grid-template-columns: 1fr; } }
 `
@@ -139,6 +147,7 @@ export default function VendedoresPage() {
   const [inicio, setInicio] = useState('')
   const [fim, setFim] = useState('')
   const [sel, setSel] = useState<string | null>(null)
+  const [detalhe, setDetalhe] = useState<DetalheVendedor | null>(null)
 
   const carregar = useCallback((ini: string, f: string) => {
     setDados(null); setErro('')
@@ -155,6 +164,17 @@ export default function VendedoresPage() {
 
   const vendedores = dados?.vendedores ?? []
   const vendedor = sel ? vendedores.find(v => v.nome === sel) ?? null : null
+  const vendId = vendedor?.id ?? null
+
+  // busca o detalhe do vendedor selecionado
+  useEffect(() => {
+    if (!vendId) { setDetalhe(null); return }
+    setDetalhe(null)
+    const p = new URLSearchParams({ id: vendId })
+    if (inicio && fim) { p.set('inicio', inicio); p.set('fim', fim) }
+    fetch(`/api/vendedores/detalhe?${p.toString()}`)
+      .then(r => r.json()).then(d => { if (d && !d.error) setDetalhe(d as DetalheVendedor) }).catch(() => {})
+  }, [vendId, inicio, fim])
   const escopo = vendedor ? [vendedor] : vendedores
   const fatTotal = escopo.reduce((s, v) => s + v.fat, 0)
   const notas = escopo.reduce((s, v) => s + v.notas, 0)
@@ -164,6 +184,17 @@ export default function VendedoresPage() {
   const ticket = notas > 0 ? fatTotal / notas : 0
   const taxa = (ganhos + perdidos) > 0 ? (ganhos / (ganhos + perdidos)) * 100 : 0
   const maior = [...vendedores].sort((a, b) => b.fat - a.fat)[0]
+
+  // individual: comparativo com a média, melhor mês e meta
+  const META_B2C = 20_000
+  const mediaEquipe = vendedores.length ? vendedores.reduce((s, v) => s + v.fat, 0) / vendedores.length : 0
+  const pctVsMedia = vendedor && mediaEquipe > 0 ? ((vendedor.fat - mediaEquipe) / mediaEquipe) * 100 : 0
+  const melhorMesObj = (detalhe?.mensal ?? []).reduce(
+    (best, m) => (m.fat > (best?.fat ?? -1) ? m : best),
+    null as null | { anomes: string; fat: number },
+  )
+  const fatMesAtual = detalhe?.fatMesAtual ?? 0
+  const pctMeta = (fatMesAtual / META_B2C) * 100
 
   const rankAno = dados?.rankAno ?? []
   const rankMes = dados?.rankMes ?? []
@@ -198,7 +229,7 @@ export default function VendedoresPage() {
       <main className="kvnd-main">
         <div className="kvnd-topbar">
           <div className="kvnd-brand-left"><VeddaraLogo height={70} /></div>
-          <h1 className="kvnd-title">Visão <em>Vendedores</em></h1>
+          <h1 className="kvnd-title"><em>Vendedores</em></h1>
           <p className="kvnd-sub">{vendedor ? `Análise individual · ${vendedor.nome}` : 'Desempenho da equipe comercial'} · dados reais Sybase IQ</p>
         </div>
 
@@ -235,7 +266,7 @@ export default function VendedoresPage() {
 
             <Ranking titulo="Parceiros" nota="Empresas parceiras que vendem para nós · por faturamento" itens={rankParceiros} max={rankParceiros[0]?.fat ?? 1} />
             <div className="kvnd-card">
-              <div className="kvnd-card-hdr"><h3 className="kvnd-card-title">Vendas: B2B × B2C × Sem representante</h3><span className="kvnd-card-note">Faturamento mensal por canal</span></div>
+              <div className="kvnd-card-hdr"><h3 className="kvnd-card-title">Vendas: B2B × B2C × Sem representante × Parceiros</h3><span className="kvnd-card-note">Faturamento mensal por canal</span></div>
               {!dados ? <div className="kvnd-sk" style={{ height: 300 }} /> : mensal.length === 0 ? <div className="kvnd-empty" style={{ height: 300, display: 'grid', placeItems: 'center' }}>Sem dados no período</div> : (
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={mensal} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
@@ -255,12 +286,67 @@ export default function VendedoresPage() {
           </>
         ) : (
           /* ===== INDIVIDUAL ===== */
-          <div className="kvnd-card">
-            <div className="kvnd-card-hdr"><h3 className="kvnd-card-title">Detalhamento de {vendedor.nome}</h3><span className="kvnd-soon">em construção</span></div>
-            <div className="kvnd-empty">
-              Os KPIs acima já são reais. O detalhamento individual<br />
-              (top vendas, top produtos, evolução na Veddara, sazonalidade, clientes novos × recompra{vendedor.cat === 'b2c' ? ', metas B2C' : ''})<br />
-              entra na próxima etapa — preciso montar e validar as queries por vendedor.
+          <div className="kvnd-ind">
+            <div style={{ display: 'grid', gridTemplateColumns: vendedor.cat === 'b2c' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 16 }}>
+              {/* Comparativo com a média (card gradiente) */}
+              <div className="kvnd-kpi hero">
+                <div className="kvnd-kpi-label">Vs. média da equipe</div>
+                <div className="kvnd-kpi-val">{pctVsMedia >= 0 ? '+' : ''}{pctVsMedia.toFixed(0)}%</div>
+                <div className="kvnd-kpi-sub">{pctVsMedia >= 0 ? 'acima' : 'abaixo'} da média · média {fmtMoeda(mediaEquipe)}</div>
+              </div>
+
+              {/* Meta do mês (apenas B2C) — donut */}
+              {vendedor.cat === 'b2c' && (
+                <div className="kvnd-card">
+                  <div className="kvnd-card-hdr"><h3 className="kvnd-card-title">Meta do mês — B2C</h3><span className="kvnd-card-note">R$ 20.000 / mês</span></div>
+                  {!detalhe ? <div className="kvnd-sk" style={{ height: 140 }} /> : (
+                    <>
+                      <div className="kvnd-donut">
+                        <ResponsiveContainer width={132} height={132}>
+                          <PieChart>
+                            <Pie data={[{ name: 'Atingido', value: Math.min(fatMesAtual, META_B2C) }, { name: 'Falta', value: Math.max(META_B2C - fatMesAtual, 0) }]} dataKey="value" innerRadius={45} outerRadius={63} startAngle={90} endAngle={-270} stroke="none">
+                              <Cell fill={pctMeta >= 100 ? '#16a34a' : '#2563EB'} />
+                              <Cell fill="#eef3fc" />
+                            </Pie>
+                          </PieChart>
+                        </ResponsiveContainer>
+                        <div className="kvnd-donut-center"><div className="big" style={{ color: pctMeta >= 100 ? 'var(--green)' : 'var(--blue)' }}>{pctMeta.toFixed(0)}%</div><div className="lbl">da meta</div></div>
+                      </div>
+                      <div className="kvnd-kpi-sub" style={{ textAlign: 'center', marginTop: 6 }}>{fmtMoedaFull(fatMesAtual)} de R$ 20.000</div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Melhor mês */}
+              <div className="kvnd-card">
+                <div className="kvnd-card-hdr"><h3 className="kvnd-card-title">Melhor mês</h3></div>
+                {!detalhe ? <div className="kvnd-sk" style={{ height: 80 }} /> : melhorMesObj ? (
+                  <>
+                    <div className="kvnd-mes">{nomeMes(melhorMesObj.anomes)}</div>
+                    <div className="kvnd-kpi-sub" style={{ marginTop: 8 }}>{fmtMoedaFull(melhorMesObj.fat)} de faturamento</div>
+                  </>
+                ) : <div className="kvnd-empty">Sem dados no período</div>}
+              </div>
+            </div>
+
+            {/* Clientes novos × recompra (barras) */}
+            <div className="kvnd-card">
+              <div className="kvnd-card-hdr"><h3 className="kvnd-card-title">Clientes: novos × recompra</h3><span className="kvnd-card-note">{vendedor.nome}</span></div>
+              {!detalhe ? <div className="kvnd-sk" style={{ height: 240 }} /> : (
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={[{ tipo: 'Novos', qtd: detalhe.novos }, { tipo: 'Recompra', qtd: detalhe.recompra }]} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
+                    <XAxis dataKey="tipo" {...axisProps} />
+                    <YAxis {...axisProps} width={42} allowDecimals={false} />
+                    <Tooltip contentStyle={tooltipStyle} formatter={(v) => [fmtNum(Number(v)), 'Clientes']} cursor={{ fill: 'rgba(148,163,184,.12)' }} />
+                    <Bar dataKey="qtd" radius={[6, 6, 0, 0]} maxBarSize={90}>
+                      <Cell fill="#F97316" />
+                      <Cell fill="#2563EB" />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
         )}
