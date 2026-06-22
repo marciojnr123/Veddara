@@ -1,8 +1,26 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+
+interface MeUser { nome: string; email: string; role: string }
+
+function useMe(): MeUser | null {
+  const [me, setMe] = useState<MeUser | null>(null)
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => setMe(d?.user ?? null))
+      .catch(() => {})
+  }, [])
+  return me
+}
+
+function inicial(u: MeUser | null): string {
+  const base = (u?.nome || u?.email || '?').trim()
+  return base.charAt(0).toUpperCase()
+}
 
 const SIDEBAR_CSS = `
 .app-sidebar {
@@ -124,8 +142,15 @@ const SIDEBAR_CSS = `
 }
 .app-rail-bottom {
   position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
-  display: flex;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
 }
+.app-rail-user {
+  width: 40px; height: 40px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: #dbeafe; color: #2563eb;
+  font-weight: 800; font-size: 15px; cursor: default;
+}
+.app-rail-user:hover { background: #cfe3fd; color: #1d4ed8; }
 .app-rail-btn {
   position: relative;
   width: 40px; height: 40px; border-radius: 12px;
@@ -274,6 +299,7 @@ interface AppSidebarProps {
 export function AppSidebar({ children, onLogout, hideLogo }: AppSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
+  const me = useMe()
   const compact = !children
 
   function handleLogout() {
@@ -310,6 +336,11 @@ export function AppSidebar({ children, onLogout, hideLogo }: AppSidebarProps) {
             </nav>
           </div>
           <div className="app-rail-bottom">
+            {me && (
+              <div className="app-rail-btn app-rail-user" data-label={`${me.nome} · ${me.email}`}>
+                {inicial(me)}
+              </div>
+            )}
             <button className="app-rail-btn" data-label="Sair" onClick={handleLogout}>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
                 <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>

@@ -7,6 +7,7 @@ import {
   AreaChart, Area, CartesianGrid, Cell,
 } from 'recharts'
 import { AppSidebar, VeddaraLogo } from '@/components/AppSidebar'
+import { Greeting } from '@/components/Greeting'
 import { DateFilter } from '@/components/DateFilter'
 import type { DadosComercial } from '@/app/api/comercial/route'
 
@@ -312,6 +313,9 @@ export default function ComercialPage() {
             Atualizar
           </button>
         </div>
+
+        {/* Saudação dinâmica com o nome do usuário logado */}
+        <Greeting />
 
         {/* Filtro de data (dropdown centralizado) */}
         <div style={{ display: 'flex', justifyContent: 'center' }}>
