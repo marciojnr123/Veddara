@@ -53,8 +53,8 @@ const CSS = `
 .kvnd-main { padding: 26px 30px 48px; display: flex; flex-direction: column; gap: 18px; min-width: 0; overflow-y: auto; }
 .kvnd-topbar { text-align: center; position: relative; }
 .kvnd-brand-left { position: absolute; left: 0; top: 50%; transform: translateY(-50%); display: flex; align-items: center; }
-.kvnd-title { font-family: 'Instrument Serif', serif; font-size: 38px; font-weight: 400; letter-spacing: -0.02em; margin: 0; line-height: 1.05; }
-.kvnd-title em { font-style: italic; background: linear-gradient(90deg, var(--blue), var(--cyan)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.kvnd-title { font-family: Georgia, 'Times New Roman', serif; font-size: 38px; font-weight: 700; letter-spacing: -0.01em; margin: 0; line-height: 1.05; }
+.kvnd-title em { font-style: normal; background: linear-gradient(90deg, var(--blue), var(--cyan)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
 .kvnd-sub { font-size: 13px; color: var(--ink-3); margin: 8px 0 0; }
 .kvnd-filtros { display: flex; justify-content: center; align-items: center; gap: 12px; flex-wrap: wrap; }
 

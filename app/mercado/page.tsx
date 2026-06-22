@@ -75,12 +75,12 @@ const CSS = `
 .kmkt-topbar { text-align: center; position: relative; }
 .kmkt-brand-left { position: absolute; left: 0; top: 50%; transform: translateY(-50%); display: flex; align-items: center; }
 .kmkt-title {
-  font-family: 'Instrument Serif', serif;
-  font-size: 38px; font-weight: 400; letter-spacing: -0.02em;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 38px; font-weight: 700; letter-spacing: -0.01em;
   margin: 0; line-height: 1.05; color: var(--ink);
 }
 .kmkt-title em {
-  font-style: italic;
+  font-style: normal;
   background: linear-gradient(90deg, var(--blue), var(--cyan));
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
 }
@@ -258,7 +258,7 @@ export default function MercadoPage() {
         {/* Header */}
         <div className="kmkt-topbar">
           <div className="kmkt-brand-left"><VeddaraLogo height={70} /></div>
-          <h1 className="kmkt-title">Análise <em>Geográfica &amp; Recompra</em></h1>
+          <h1 className="kmkt-title"><em>Análise de Mercado</em></h1>
           <p className="kmkt-sub">Período: <strong>{labelPeriodo}</strong></p>
           <button className="kmkt-refresh" onClick={() => carregar(inicio, fim)}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
