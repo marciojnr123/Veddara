@@ -344,7 +344,7 @@ export default function ComercialPage() {
         {/* Header */}
         {/* Top bar: logo · filtro de data · atualizar */}
         <div className="kcom-topbar">
-          <div className="kcom-brand-left"><VeddaraLogo height={34} /></div>
+          <div className="kcom-brand-left"><VeddaraLogo height={48} /></div>
           <DateFilter onChange={aplicarData} />
           <div className="kcom-topbar-right">
             <button className="kcom-refresh-round" onClick={() => carregar(inicio, fim)} title="Atualizar" aria-label="Atualizar">
@@ -385,7 +385,7 @@ export default function ComercialPage() {
           </div>
 
           <div className="kcom-kpi">
-            <div className="kcom-kpi-label">Notas emitidas</div>
+            <div className="kcom-kpi-label">Faturas</div>
             {k ? (
               <>
                 <div className="kcom-kpi-val">{fmtNum(k.notasPeriodo)}</div>
@@ -433,7 +433,7 @@ export default function ComercialPage() {
             </div>
           ) : (
             <div className="kcom-kpi">
-              <div className="kcom-kpi-label">Orçamentos ganhos</div>
+              <div className="kcom-kpi-label">Orçamentos Faturados</div>
               {funil ? (
                 <>
                   <div className="kcom-kpi-val blue">{fmtNum(funil.convertidos)}</div>
@@ -454,7 +454,7 @@ export default function ComercialPage() {
           </div>
 
           <div className="kcom-kpi warn">
-            <div className="kcom-kpi-label">Orçamentos perdidos</div>
+            <div className="kcom-kpi-label">Orçamentos Cancelados</div>
             {funil ? (
               <>
                 <div className="kcom-kpi-val">{fmtNum(funil.perdidos)}</div>
@@ -606,8 +606,8 @@ export default function ComercialPage() {
             {funil ? (() => {
               const totalFunil = funil.convertidos + funil.abertos + funil.perdidos
               const stages = [
-                { label: 'Ganhos', val: funil.convertidos, grad: 'linear-gradient(135deg,#3b6fe4,#4b8ff0)' },
-                { label: 'Perdidos', val: funil.perdidos, grad: 'linear-gradient(135deg,#ef7a2a,#f7a44b)' },
+                { label: 'Orçamentos com Fatura', val: funil.convertidos, grad: 'linear-gradient(135deg,#3b6fe4,#4b8ff0)' },
+                { label: 'Orçamentos Perdidos', val: funil.perdidos, grad: 'linear-gradient(135deg,#ef7a2a,#f7a44b)' },
                 { label: 'Em aberto', val: funil.abertos, grad: 'linear-gradient(135deg,#36b8e0,#5bd0d0)' },
               ]
               const maxV = Math.max(...stages.map(s => s.val), 1)
