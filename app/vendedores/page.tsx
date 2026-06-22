@@ -32,6 +32,13 @@ function nomeMes(anomes: string): string {
 }
 const CAT_LABEL: Record<CatVend, string> = { b2b: 'B2B', b2c: 'B2C', sem: 'Sem representante', parceiro: 'Parceiro' }
 
+// Ponto no gráfico só no fim da semana (linha evolui diária, marca semanal)
+function WeekDot(props: { cx?: number; cy?: number; stroke?: string; index?: number; payload?: { marker?: boolean } }) {
+  const { cx, cy, stroke, index, payload } = props
+  if (!payload?.marker || cx == null || cy == null) return <g key={`e${index}`} />
+  return <circle key={`d${index}`} cx={cx} cy={cy} r={5} fill={stroke} stroke="#fff" strokeWidth={2} />
+}
+
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap');
 .kvnd-root, .kvnd-root * { box-sizing: border-box; }
@@ -73,6 +80,7 @@ const CSS = `
 .kvnd-kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
 .kvnd-kpi { background: rgba(255,255,255,.72); border: 1px solid rgba(255,255,255,.8); border-radius: var(--radius-sm); padding: 18px 20px; box-shadow: var(--shadow); }
 .kvnd-kpi.hero { background: linear-gradient(135deg, #4B6FE4 0%, #3EA8D8 55%, #42C9BF 100%); border: 0; }
+.kvnd-kpi.hero.abaixo { background: linear-gradient(135deg, #fb923c 0%, #f97316 55%, #ef4444 100%); }
 .kvnd-kpi.orange { background: #fff7f1; border-color: #ffe2cf; }
 .kvnd-kpi.hero .kvnd-kpi-label { color: rgba(255,255,255,.85); }
 .kvnd-kpi.hero .kvnd-kpi-val, .kvnd-kpi.hero .kvnd-kpi-sub { color: #fff; }
@@ -166,15 +174,19 @@ export default function VendedoresPage() {
   const vendedor = sel ? vendedores.find(v => v.nome === sel) ?? null : null
   const vendId = vendedor?.id ?? null
 
+  // ids da mesma categoria do vendedor (para a média da categoria no gráfico)
+  const catIdsStr = vendedor ? vendedores.filter(v => v.cat === vendedor.cat).map(v => v.id).join(',') : ''
+
   // busca o detalhe do vendedor selecionado
   useEffect(() => {
     if (!vendId) { setDetalhe(null); return }
     setDetalhe(null)
     const p = new URLSearchParams({ id: vendId })
     if (inicio && fim) { p.set('inicio', inicio); p.set('fim', fim) }
+    if (catIdsStr) p.set('catIds', catIdsStr)
     fetch(`/api/vendedores/detalhe?${p.toString()}`)
       .then(r => r.json()).then(d => { if (d && !d.error) setDetalhe(d as DetalheVendedor) }).catch(() => {})
-  }, [vendId, inicio, fim])
+  }, [vendId, inicio, fim, catIdsStr])
   const escopo = vendedor ? [vendedor] : vendedores
   const fatTotal = escopo.reduce((s, v) => s + v.fat, 0)
   const notas = escopo.reduce((s, v) => s + v.notas, 0)
@@ -197,6 +209,24 @@ export default function VendedoresPage() {
   )
   const fatMesAtual = detalhe?.fatMesAtual ?? 0
   const pctMeta = (fatMesAtual / META_B2C) * 100
+
+  // evolução diária acumulada do mês: vendedor vs média da categoria
+  const evo = detalhe?.evolucaoMes ?? null
+  const fimSemana = evo ? [7, 14, 21, evo.diasNoMes] : [7, 14, 21, 30]
+  const labelSemana: Record<number, string> = { 7: 'Sem 1', 14: 'Sem 2', 21: 'Sem 3', [fimSemana[3]]: 'Sem 4' }
+  const evoData = (() => {
+    if (!evo) return [] as Array<{ dia: number; vendedor: number; media: number; marker: boolean }>
+    const vMap = new Map(evo.vendedorDia.map(d => [d.dia, d.fat]))
+    const cMap = new Map(evo.categoriaDia.map(d => [d.dia, d.fat]))
+    const out: Array<{ dia: number; vendedor: number; media: number; marker: boolean }> = []
+    let cv = 0, cc = 0
+    for (let d = 1; d <= evo.diasNoMes; d++) {
+      cv += vMap.get(d) ?? 0
+      cc += cMap.get(d) ?? 0
+      out.push({ dia: d, vendedor: cv, media: evo.catN > 0 ? cc / evo.catN : 0, marker: fimSemana.includes(d) })
+    }
+    return out
+  })()
 
   const rankAno = dados?.rankAno ?? []
   const rankMes = dados?.rankMes ?? []
@@ -291,9 +321,9 @@ export default function VendedoresPage() {
           <div className="kvnd-ind">
             <div style={{ display: 'grid', gridTemplateColumns: vendedor.cat === 'b2c' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 16 }}>
               {/* Comparativo com a média (card gradiente) */}
-              <div className="kvnd-kpi hero">
+              <div className={`kvnd-kpi hero ${pctVsMedia < 0 ? 'abaixo' : ''}`}>
                 <div className="kvnd-kpi-label">Vs. média {CAT_LABEL[vendedor.cat]}</div>
-                <div className="kvnd-kpi-val">{pctVsMedia >= 0 ? '+' : ''}{pctVsMedia.toFixed(0)}%</div>
+                <div className="kvnd-kpi-val">{Math.abs(pctVsMedia).toFixed(0)}% {pctVsMedia >= 0 ? 'acima' : 'abaixo'}</div>
                 <div className="kvnd-kpi-sub">{pctVsMedia >= 0 ? 'acima' : 'abaixo'} da média {CAT_LABEL[vendedor.cat]} · média {fmtMoeda(mediaCat)}</div>
               </div>
 
@@ -330,6 +360,34 @@ export default function VendedoresPage() {
                   </>
                 ) : <div className="kvnd-empty">Sem dados no período</div>}
               </div>
+            </div>
+
+            {/* Evolução semanal acumulada: vendedor vs média da categoria */}
+            <div className="kvnd-card">
+              <div className="kvnd-card-hdr">
+                <h3 className="kvnd-card-title">Evolução semanal</h3>
+                <span className="kvnd-card-note">Acumulado no mês · {vendedor.nome} vs média {CAT_LABEL[vendedor.cat]}</span>
+              </div>
+              {!detalhe ? <div className="kvnd-sk" style={{ height: 280 }} /> : evoData.length === 0 ? <div className="kvnd-empty">Sem dados no mês</div> : (
+                <ResponsiveContainer width="100%" height={280}>
+                  <LineChart data={evoData} margin={{ top: 8, right: 16, left: 4, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
+                    <XAxis
+                      dataKey="dia" type="number" domain={[1, fimSemana[3]]} ticks={fimSemana}
+                      tickFormatter={(d) => labelSemana[Number(d)] ?? ''} {...axisProps}
+                    />
+                    <YAxis tickFormatter={fmtAxis} {...axisProps} width={46} />
+                    <Tooltip
+                      contentStyle={tooltipStyle}
+                      labelFormatter={(d) => `Dia ${d}`}
+                      formatter={(v, n) => [fmtMoedaFull(Number(v)), String(n)]}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 12.5, paddingTop: 10 }} />
+                    <Line type="monotone" dataKey="vendedor" name={vendedor.nome} stroke="#2563EB" strokeWidth={3} dot={<WeekDot />} activeDot={{ r: 6 }} />
+                    <Line type="monotone" dataKey="media" name={`Média ${CAT_LABEL[vendedor.cat]}`} stroke="#22C3DD" strokeWidth={3} strokeDasharray="6 5" dot={<WeekDot />} activeDot={{ r: 6 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
             </div>
 
             {/* Clientes novos × recompra (barras) */}

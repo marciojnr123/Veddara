@@ -7,6 +7,15 @@ export interface DetalheVendedor {
   fatMesAtual: number
   novos: number
   recompra: number
+  // evolução diária (acumulada no front) do mês de referência: vendedor vs categoria
+  evolucaoMes: {
+    ano: number
+    mes: number
+    diasNoMes: number
+    catN: number               // nº de vendedores na categoria (p/ média)
+    vendedorDia: Array<{ dia: number; fat: number }>
+    categoriaDia: Array<{ dia: number; fat: number }>  // SOMA da categoria por dia
+  }
 }
 
 const num = (v: unknown): number => { const n = Number(v); return Number.isFinite(n) ? n : 0 }
@@ -43,6 +52,28 @@ export async function GET(req: NextRequest) {
   const hoje = new Date()
   const mesIni = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-01`
 
+  // ── Mês de referência da evolução diária ──
+  // mês do filtro (quando é 1 mês só) ou o mês atual
+  let mAno: number, mMes: number
+  if (temFiltro && inicio && fim && inicio.slice(0, 7) === fim.slice(0, 7)) {
+    mAno = Number(inicio.slice(0, 4)); mMes = Number(inicio.slice(5, 7))
+  } else {
+    mAno = hoje.getFullYear(); mMes = hoje.getMonth() + 1
+  }
+  const mIni = `${mAno}-${String(mMes).padStart(2, '0')}-01`
+  const mFimMais1 = mMes === 12 ? `${mAno + 1}-01-01` : `${mAno}-${String(mMes + 1).padStart(2, '0')}-01`
+  const diasNoMes = new Date(mAno, mMes, 0).getDate()
+
+  // ids da mesma categoria (para a média), validados como UUID
+  const catIds = (searchParams.get('catIds') || '').split(',').map(s => s.trim()).filter(s => UUID_RE.test(s))
+  const catN = catIds.length
+  const catInList = catIds.map(x => `'${x}'`).join(',')
+
+  const baseDia = `FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
+    JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
+    WHERE io.${ST} ${ITEMF} AND io.SystemCustomerId = '${EMPRESA_ID}'
+      AND io.DateInvoiceOrder >= '${mIni}' AND io.DateInvoiceOrder < '${mFimMais1}'`
+
   const base = `FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
     JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
     WHERE io.${ST} ${ITEMF} AND io.SystemCustomerId = '${EMPRESA_ID}' AND io.SalespersonId = '${id}'`
@@ -72,8 +103,17 @@ export async function GET(req: NextRequest) {
       GROUP BY io.CustomerId
     ) t`
 
+  // faturamento por dia do mês de referência (vendedor; e categoria)
+  const DIA_SEL = 'DAY(io.DateInvoiceOrder) AS dia, SUM(ii.TOTAL_SALE_PRICE) AS fat'
+  const qDiaVendSql = `SELECT ${DIA_SEL} ${baseDia} AND io.SalespersonId = '${id}'
+                       GROUP BY DAY(io.DateInvoiceOrder) ORDER BY dia`
+  const qDiaCatSql = catN > 0
+    ? `SELECT ${DIA_SEL} ${baseDia} AND io.SalespersonId IN (${catInList})
+       GROUP BY DAY(io.DateInvoiceOrder) ORDER BY dia`
+    : null
+
   try {
-    const [qMensal, qMes, qNR] = await Promise.all([
+    const queries = [
       // faturamento por mês do vendedor (para "melhor mês") — SEMPRE histórico
       // completo, NÃO afetado pelo filtro de data da tela
       agentQuery(`SELECT YEAR(io.DateInvoiceOrder)*100 + MONTH(io.DateInvoiceOrder) AS anomes,
@@ -85,13 +125,25 @@ export async function GET(req: NextRequest) {
       agentQuery(`SELECT SUM(ii.TOTAL_SALE_PRICE) AS fat ${base} AND io.DateInvoiceOrder >= '${mesIni}'`, 10),
       // clientes do vendedor: novos × recompra (respeita o filtro de data)
       agentQuery(qNRSql, 10),
-    ])
+      // evolução diária do vendedor no mês de referência
+      agentQuery(qDiaVendSql, 100),
+    ]
+    if (qDiaCatSql) queries.push(agentQuery(qDiaCatSql, 100))
+
+    const res = await Promise.all(queries)
+    const [qMensal, qMes, qNR, qDiaVend] = res
+    const qDiaCat = qDiaCatSql ? res[4] : null
 
     const dados: DetalheVendedor = {
       mensal: qMensal.rows.map(r => ({ anomes: str(r[0]), fat: num(r[1]) })).filter(x => x.anomes),
       fatMesAtual: num(qMes.rows[0]?.[0]),
       recompra: num(qNR.rows[0]?.[0]),
       novos: num(qNR.rows[0]?.[1]),
+      evolucaoMes: {
+        ano: mAno, mes: mMes, diasNoMes, catN,
+        vendedorDia: qDiaVend.rows.map(r => ({ dia: num(r[0]), fat: num(r[1]) })),
+        categoriaDia: qDiaCat ? qDiaCat.rows.map(r => ({ dia: num(r[0]), fat: num(r[1]) })) : [],
+      },
     }
     return NextResponse.json(dados)
   } catch (e) {
