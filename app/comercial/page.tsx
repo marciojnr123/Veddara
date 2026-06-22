@@ -7,6 +7,7 @@ import {
   AreaChart, Area, CartesianGrid, Cell,
 } from 'recharts'
 import { AppSidebar, VeddaraLogo } from '@/components/AppSidebar'
+import { DateFilter } from '@/components/DateFilter'
 import type { DadosComercial } from '@/app/api/comercial/route'
 
 function fmtMoeda(v: number): string {
@@ -222,11 +223,6 @@ const CSS = `
 
 const AREA_GRAD_ID = 'kcom-area-grad'
 
-// Presets de período
-function isoHoje(): string { return new Date().toISOString().slice(0, 10) }
-function isoAnoMesDia(a: number, m: number, d: number): string {
-  return `${a}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-}
 
 export default function ComercialPage() {
   const router = useRouter()
@@ -234,8 +230,6 @@ export default function ComercialPage() {
   const [erro, setErro] = useState('')
   const [inicio, setInicio] = useState('')
   const [fim, setFim] = useState('')
-  const [mes, setMes] = useState('')
-  const [presetAtivo, setPresetAtivo] = useState<string>('tudo')
 
   const carregar = useCallback((ini: string, f: string) => {
     setDados(null)
@@ -258,37 +252,9 @@ export default function ComercialPage() {
 
   useEffect(() => { carregar('', '') }, [carregar])
 
-  function aplicarPreset(preset: string) {
-    setPresetAtivo(preset)
-    setMes('')
-    const hoje = new Date()
-    const ano = hoje.getFullYear()
-    let ini = '', f = ''
-    if (preset === 'tudo') { ini = ''; f = '' }
-    else if (preset === 'ano') { ini = isoAnoMesDia(ano, 1, 1); f = isoHoje() }
-    else if (preset === 'anopassado') { ini = isoAnoMesDia(ano - 1, 1, 1); f = isoAnoMesDia(ano - 1, 12, 31) }
-    setInicio(ini); setFim(f)
-    carregar(ini, f)
-  }
-
-  function aplicarMes(valor: string) {
-    setMes(valor)
-    if (!valor) { aplicarPreset('tudo'); return }
-    const [a, m] = valor.split('-').map(Number)
-    const ultimoDia = new Date(a, m, 0).getDate()
-    const ini = isoAnoMesDia(a, m, 1)
-    const f = isoAnoMesDia(a, m, ultimoDia)
-    setInicio(ini); setFim(f)
-    setPresetAtivo('mes')
-    carregar(ini, f)
-  }
-
-  function aplicarManual(novoInicio: string, novoFim: string) {
+  function aplicarData(novoInicio: string, novoFim: string) {
     setInicio(novoInicio); setFim(novoFim)
-    setMes('')
-    setPresetAtivo(novoInicio && novoFim ? 'custom' : 'tudo')
-    if (novoInicio && novoFim) carregar(novoInicio, novoFim)
-    else if (!novoInicio && !novoFim) carregar('', '')
+    carregar(novoInicio, novoFim)
   }
 
   const tooltipStyle = {
@@ -324,12 +290,6 @@ export default function ComercialPage() {
       : (dados?.mensal ?? []).map(m => ({ label: nomeMes(m.anomes), faturamento: m.faturamento, notas: m.notas }))
   const anualData = dados?.anual ?? []
 
-  const presets = [
-    { id: 'tudo', label: 'Tudo' },
-    { id: 'ano', label: 'Este ano' },
-    { id: 'anopassado', label: 'Ano passado' },
-  ]
-
   return (
     <div className="kcom-root">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
@@ -353,53 +313,9 @@ export default function ComercialPage() {
           </button>
         </div>
 
-        {/* Filtros de data */}
-        <div className="kcom-filtros">
-          <div className="kcom-presets">
-            {presets.map(p => (
-              <button
-                key={p.id}
-                className={`kcom-preset ${presetAtivo === p.id ? 'active' : ''}`}
-                onClick={() => aplicarPreset(p.id)}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-          <div className="kcom-date-group">
-            <label>Mês</label>
-            <input
-              type="month"
-              className="kcom-date-input"
-              value={mes}
-              onChange={e => aplicarMes(e.target.value)}
-            />
-          </div>
-          <div className="kcom-date-group">
-            <label>De</label>
-            <input
-              type="date"
-              className="kcom-date-input"
-              value={inicio}
-              max={fim || undefined}
-              onChange={e => aplicarManual(e.target.value, fim)}
-            />
-          </div>
-          <div className="kcom-date-group">
-            <label>Até</label>
-            <input
-              type="date"
-              className="kcom-date-input"
-              value={fim}
-              min={inicio || undefined}
-              onChange={e => aplicarManual(inicio, e.target.value)}
-            />
-          </div>
-          {temFiltro && (
-            <button className="kcom-refresh" onClick={() => aplicarPreset('tudo')}>
-              Limpar
-            </button>
-          )}
+        {/* Filtro de data (dropdown centralizado) */}
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <DateFilter onChange={aplicarData} />
         </div>
 
         {erro && (

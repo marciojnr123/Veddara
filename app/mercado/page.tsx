@@ -7,6 +7,7 @@ import {
   AreaChart, Area, CartesianGrid, Legend, PieChart, Pie, Cell,
 } from 'recharts'
 import { AppSidebar, VeddaraLogo } from '@/components/AppSidebar'
+import { DateFilter } from '@/components/DateFilter'
 import type { DadosMercado } from '@/app/api/mercado/route'
 
 /* ---------- helpers de formatação ---------- */
@@ -23,10 +24,6 @@ function fmtAxis(v: number): string {
 }
 function fmtNum(v: number): string { return v.toLocaleString('pt-BR') }
 function fmtDataBR(iso: string): string { const [a, m, d] = iso.split('-'); return `${d}/${m}/${a}` }
-function isoHoje(): string { return new Date().toISOString().slice(0, 10) }
-function isoAnoMesDia(a: number, m: number, d: number): string {
-  return `${a}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-}
 function nomeMes(anomes: string): string {
   const m = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
   const ano = anomes.slice(0, 4); const mes = parseInt(anomes.slice(4), 10)
@@ -165,11 +162,6 @@ const CSS = `
 }
 `
 
-const presets = [
-  { id: 'tudo', label: 'Tudo' },
-  { id: 'ano', label: 'Este ano' },
-  { id: 'anopassado', label: 'Ano passado' },
-]
 
 export default function MercadoPage() {
   const router = useRouter()
@@ -179,8 +171,6 @@ export default function MercadoPage() {
   const [hover, setHover] = useState<{ x: number; y: number; sigla: string; name: string; val: number } | null>(null)
   const [inicio, setInicio] = useState('')
   const [fim, setFim] = useState('')
-  const [mes, setMes] = useState('')
-  const [presetAtivo, setPresetAtivo] = useState('tudo')
 
   // carrega a geometria do mapa uma vez
   useEffect(() => {
@@ -208,35 +198,9 @@ export default function MercadoPage() {
 
   useEffect(() => { carregar('', '') }, [carregar])
 
-  function aplicarPreset(preset: string) {
-    setPresetAtivo(preset)
-    setMes('')
-    const hoje = new Date()
-    const ano = hoje.getFullYear()
-    let ini = '', f = ''
-    if (preset === 'tudo') { ini = ''; f = '' }
-    else if (preset === 'ano') { ini = isoAnoMesDia(ano, 1, 1); f = isoHoje() }
-    else if (preset === 'anopassado') { ini = isoAnoMesDia(ano - 1, 1, 1); f = isoAnoMesDia(ano - 1, 12, 31) }
-    setInicio(ini); setFim(f)
-    carregar(ini, f)
-  }
-
-  function aplicarMes(valor: string) {
-    setMes(valor)
-    if (!valor) { aplicarPreset('tudo'); return }
-    const [a, m] = valor.split('-').map(Number)
-    const ultimoDia = new Date(a, m, 0).getDate()
-    const ini = isoAnoMesDia(a, m, 1)
-    const f = isoAnoMesDia(a, m, ultimoDia)
-    setInicio(ini); setFim(f); setPresetAtivo('mes')
-    carregar(ini, f)
-  }
-
-  function aplicarManual(novoInicio: string, novoFim: string) {
-    setInicio(novoInicio); setFim(novoFim); setMes('')
-    setPresetAtivo(novoInicio && novoFim ? 'custom' : 'tudo')
-    if (novoInicio && novoFim) carregar(novoInicio, novoFim)
-    else if (!novoInicio && !novoFim) carregar('', '')
+  function aplicarData(novoInicio: string, novoFim: string) {
+    setInicio(novoInicio); setFim(novoFim)
+    carregar(novoInicio, novoFim)
   }
 
   // mapa uf -> faturamento (dados reais)
@@ -304,25 +268,9 @@ export default function MercadoPage() {
           </button>
         </div>
 
-        {/* Filtros */}
-        <div className="kmkt-filtros">
-          <div className="kmkt-presets">
-            {presets.map(p => (
-              <button key={p.id} className={`kmkt-preset ${presetAtivo === p.id ? 'active' : ''}`} onClick={() => aplicarPreset(p.id)}>
-                {p.label}
-              </button>
-            ))}
-          </div>
-          <div className="kmkt-date-group">
-            <label>Mês</label>
-            <input type="month" className="kmkt-date-input" value={mes} onChange={e => aplicarMes(e.target.value)} />
-          </div>
-          <div className="kmkt-date-group"><label>De</label>
-            <input type="date" className="kmkt-date-input" value={inicio} max={fim || undefined} onChange={e => aplicarManual(e.target.value, fim)} />
-          </div>
-          <div className="kmkt-date-group"><label>Até</label>
-            <input type="date" className="kmkt-date-input" value={fim} min={inicio || undefined} onChange={e => aplicarManual(inicio, e.target.value)} />
-          </div>
+        {/* Filtro de data (dropdown centralizado) */}
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <DateFilter onChange={aplicarData} />
         </div>
 
         {erro && (
