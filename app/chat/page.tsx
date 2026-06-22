@@ -2,8 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { AppSidebar, VeddaraLogo } from '@/components/AppSidebar'
+import { AppSidebar } from '@/components/AppSidebar'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ReferenceLine,
   AreaChart, Area, ResponsiveContainer,
@@ -239,29 +238,42 @@ const CSS = `
   height: 100vh;
   overflow: hidden;
   min-width: 0;
+  padding: 20px 22px 22px;
+}
+.kc-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, .06);
+  overflow: hidden;
 }
 
-/* Top bar */
+/* Card header */
 .kc-topbar {
   background: transparent;
-  padding: 18px 24px;
+  padding: 16px 22px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  position: relative;
+  gap: 12px;
+  border-bottom: 1px solid var(--line);
   flex-shrink: 0;
 }
-.kc-title {
-  font-family: 'Instrument Serif', serif;
-  font-size: 30px;
-  font-weight: 400;
-  letter-spacing: -0.01em;
-  margin: 0;
-  color: var(--ink);
+.kc-hdr-icon {
+  width: 40px; height: 40px;
+  border-radius: 12px;
+  background: var(--green-soft);
+  color: var(--green);
+  display: grid; place-items: center;
+  flex-shrink: 0;
 }
-.kc-title em { font-style: italic; color: var(--green); }
-.kc-brand-left { position: absolute; left: 24px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; }
-.kc-topbar-right { position: absolute; right: 24px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 10px; }
+.kc-hdr-text { line-height: 1.25; }
+.kc-hdr-text .t1 { font-size: 16px; font-weight: 800; color: var(--ink); letter-spacing: -0.01em; }
+.kc-hdr-text .t2 { font-size: 12px; color: var(--ink-3); font-weight: 500; }
+.kc-topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 .kc-schema-btn {
   font-size: 12px;
   font-weight: 600;
@@ -320,35 +332,61 @@ const CSS = `
   gap: 0;
 }
 .kc-empty-icon {
-  width: 64px; height: 64px;
+  width: 60px; height: 60px;
   background: var(--green-soft);
-  border-radius: 20px;
+  border-radius: 50%;
   display: grid; place-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
   color: var(--green);
 }
 .kc-empty h2 {
-  font-family: 'Instrument Serif', serif;
-  font-size: 30px;
-  font-weight: 400;
-  letter-spacing: -0.02em;
-  margin: 0 0 8px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin: 0 0 10px;
+  color: var(--ink);
 }
-.kc-empty h2 em { font-style: italic; color: var(--green); }
 .kc-empty p {
-  font-size: 13.5px;
+  font-size: 14px;
   color: var(--ink-3);
   margin: 0 0 28px;
-  max-width: 360px;
+  max-width: 440px;
   line-height: 1.6;
 }
 .kc-empty-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  max-width: 560px;
+  max-width: 680px;
 }
+.kc-empty-grid .kc-sugg-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  font-size: 14.5px;
+  font-weight: 500;
+  background: #fff;
+  border: 1px solid #eaeef4;
+  color: #334155;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+}
+.kc-empty-grid .kc-sugg-btn:hover {
+  background: #fff;
+  border-color: var(--green);
+  color: var(--ink);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, .08);
+}
+.kc-empty-grid .kc-sugg-btn .arrow {
+  flex-shrink: 0;
+  color: var(--ink-3);
+  transition: transform .12s, color .12s;
+}
+.kc-empty-grid .kc-sugg-btn:hover .arrow { color: var(--green); transform: translateX(2px); }
 
 /* Message bubbles */
 .kc-msg-row {
@@ -518,15 +556,21 @@ const CSS = `
 .kc-textarea::placeholder { color: var(--ink-3); }
 .kc-textarea:disabled { opacity: .5; }
 .kc-send-btn {
-  width: 44px; height: 44px;
+  width: 46px; height: 46px;
   background: var(--green);
   color: #fff;
   border: 0;
-  border-radius: 14px;
+  border-radius: 50%;
   cursor: pointer;
   display: grid; place-items: center;
   flex-shrink: 0;
   transition: background .12s, transform .08s;
+}
+.kc-input-hint {
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  margin-top: 10px;
 }
 .kc-send-btn:hover { background: var(--green-ink); }
 .kc-send-btn:active { transform: scale(.95); }
@@ -1054,11 +1098,19 @@ export default function ChatPage() {
 
       {/* ── MAIN ── */}
       <div className="kc-main">
+       <div className="kc-card">
 
-        {/* Topbar */}
+        {/* Card header */}
         <div className="kc-topbar">
-          <div className="kc-brand-left"><VeddaraLogo height={52} /></div>
-          <h1 className="kc-title">Chat <em>IA</em></h1>
+          <div className="kc-hdr-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+          <div className="kc-hdr-text">
+            <div className="t1">Chat Analítico</div>
+            <div className="t2">IA Analítico Veddara</div>
+          </div>
           <div className="kc-topbar-right">
             {schemaLoaded && (
               <div className="kc-cache-dot">
@@ -1095,16 +1147,19 @@ export default function ChatPage() {
           {messages.length === 0 ? (
             <div className="kc-empty">
               <div className="kc-empty-icon">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-                  <path d="M9.663 17h4.673M12 3v1m6.364 1.636-.707.707M21 12h-1M4 12H3m3.343-5.657-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </div>
-              <h2>Olá! O que deseja <em>saber?</em></h2>
-              <p>Faça perguntas sobre vendas, faturamento, clientes e orçamentos em português. Vou consultar o banco Sybase IQ e responder com dados reais.</p>
+              <h2>IA Analítico Veddara</h2>
+              <p>Faça perguntas sobre ligações, operadores, campanhas e qualificações. Vou traduzir para SQL e trazer os resultados com análise.</p>
               <div className="kc-empty-grid">
                 {SUGESTOES.map(s => (
-                  <button key={s} className="kc-sugg-btn" style={{ textAlign: 'left' }} onClick={() => send(s)}>
-                    {s}
+                  <button key={s} className="kc-sugg-btn" onClick={() => send(s)}>
+                    <span>{s}</span>
+                    <svg className="arrow" width="16" height="16" viewBox="0 0 24 24" fill="none">
+                      <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
                   </button>
                 ))}
               </div>
@@ -1177,7 +1232,7 @@ export default function ChatPage() {
               onKeyDown={handleKeyDown}
               disabled={loading}
               rows={1}
-              placeholder="Pergunte sobre os dados municipais… (Enter para enviar)"
+              placeholder="Ex: Qual foi o faturamento total em 2025?"
               className="kc-textarea"
               onInput={e => {
                 const t = e.currentTarget
@@ -1196,7 +1251,9 @@ export default function ChatPage() {
               </svg>
             </button>
           </div>
+          <div className="kc-input-hint">Enter para enviar · Shift+Enter para nova linha</div>
         </div>
+       </div>
       </div>
     </div>
   )
