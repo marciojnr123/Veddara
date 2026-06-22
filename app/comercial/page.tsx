@@ -36,6 +36,27 @@ function nomeMes(anomes: string): string {
   return `${m[mes - 1]}/${ano.slice(2)}`
 }
 
+// Meta mensal de faturamento da empresa
+const META_EMPRESA = 350_000
+
+const ARC = 'M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831'
+function MetaDonut({ valor, meta }: { valor: number; meta: number }) {
+  const ratio = meta > 0 ? valor / meta : 0
+  const dash = Math.min(ratio * 100, 100).toFixed(1)
+  const pctLabel = Math.round(ratio * 100)
+  return (
+    <div className="kcom-meta">
+      <svg className="kcom-meta-ring" viewBox="0 0 36 36">
+        <path className="kcom-meta-track" d={ARC} />
+        <path className="kcom-meta-prog" d={ARC} strokeDasharray={`${dash} 100`} />
+        <text x="18" y="17" className="kcom-meta-pct">{pctLabel}%</text>
+        <text x="18" y="22" className="kcom-meta-lbl">da meta</text>
+      </svg>
+      <div className="kcom-meta-sub">{fmtMoeda(valor)} de {fmtMoeda(meta)}</div>
+    </div>
+  )
+}
+
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap');
 
@@ -79,6 +100,15 @@ const CSS = `
 }
 .kcom-refresh-round:hover { background: var(--surface-2); color: var(--ink); }
 .kcom-refresh-round:active { transform: scale(.93); }
+
+/* Donut da meta mensal */
+.kcom-meta { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: 2px; }
+.kcom-meta-ring { width: 96px; height: 96px; }
+.kcom-meta-track { fill: none; stroke: #eef2fb; stroke-width: 3.4; }
+.kcom-meta-prog { fill: none; stroke: #3b6fe4; stroke-width: 3.4; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; transition: stroke-dasharray .6s ease; }
+.kcom-meta-pct { fill: #3b6fe4; font-size: 8px; font-weight: 800; text-anchor: middle; font-family: inherit; }
+.kcom-meta-lbl { fill: #94a3b8; font-size: 3.3px; font-weight: 600; text-anchor: middle; font-family: inherit; }
+.kcom-meta-sub { font-size: 11.5px; color: #94a3b8; font-weight: 600; }
 .kcom-title {
   font-family: 'Instrument Serif', serif;
   font-size: 38px; font-weight: 400; letter-spacing: -0.02em;
@@ -385,15 +415,24 @@ export default function ComercialPage() {
             ) : <div className="kcom-sk" style={{ height: 40 }} />}
           </div>
 
-          <div className="kcom-kpi">
-            <div className="kcom-kpi-label">Orçamentos ganhos</div>
-            {funil ? (
-              <>
-                <div className="kcom-kpi-val blue">{fmtNum(funil.convertidos)}</div>
-                <div className="kcom-kpi-sub">Convertidos em pedido</div>
-              </>
-            ) : <div className="kcom-sk" style={{ height: 40 }} />}
-          </div>
+          {granularidade === 'diario' ? (
+            <div className="kcom-kpi">
+              <div className="kcom-kpi-label">Meta do mês <span style={{ color: 'var(--ink-3)', fontWeight: 600 }}>· {fmtMoeda(META_EMPRESA)}</span></div>
+              {k ? (
+                <MetaDonut valor={k.faturamentoPeriodo} meta={META_EMPRESA} />
+              ) : <div className="kcom-sk" style={{ height: 40 }} />}
+            </div>
+          ) : (
+            <div className="kcom-kpi">
+              <div className="kcom-kpi-label">Orçamentos ganhos</div>
+              {funil ? (
+                <>
+                  <div className="kcom-kpi-val blue">{fmtNum(funil.convertidos)}</div>
+                  <div className="kcom-kpi-sub">Convertidos em pedido</div>
+                </>
+              ) : <div className="kcom-sk" style={{ height: 40 }} />}
+            </div>
+          )}
 
           <div className="kcom-kpi">
             <div className="kcom-kpi-label">Clientes ativos</div>
