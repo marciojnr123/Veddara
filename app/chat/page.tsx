@@ -31,14 +31,6 @@ const SUGESTOES = [
   'Quais produtos ou serviços mais faturaram?',
 ]
 
-function WhatsAppLogo({ size = 24 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M.057 24l1.687-6.163a11.867 11.867 0 0 1-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.817 11.817 0 0 1 8.413 3.488 11.824 11.824 0 0 1 3.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 0 1-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 0 0 1.51 5.26l-.999 3.648 3.978-1.043zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
-    </svg>
-  )
-}
-
 const CHART_COLORS = [
   'oklch(0.52 0.20 264)',
   'oklch(0.62 0.18 240)',
@@ -340,13 +332,15 @@ const CSS = `
   gap: 0;
 }
 .kc-empty-icon {
-  width: 60px; height: 60px;
-  background: var(--green-soft);
+  width: 104px; height: 104px;
+  background: #fff;
+  border: 1px solid var(--line);
   border-radius: 50%;
   display: grid; place-items: center;
-  margin-bottom: 18px;
-  color: var(--green);
+  margin-bottom: 20px;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, .08);
 }
+.kc-empty-icon img { width: 70px; height: auto; display: block; }
 .kc-empty h2 {
   font-family: 'Plus Jakarta Sans', sans-serif;
   font-size: 22px;
@@ -1110,12 +1104,14 @@ export default function ChatPage() {
 
         {/* Card header */}
         <div className="kc-topbar">
-          <div className="kc-hdr-icon" style={{ background: '#25D366', color: '#fff' }}>
-            <WhatsAppLogo size={22} />
+          <div className="kc-hdr-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
           </div>
           <div className="kc-hdr-text">
-            <div className="t1">Veddara</div>
-            <div className="t2">online · IA Analítico</div>
+            <div className="t1">Chat Analítico</div>
+            <div className="t2">IA Analítico Veddara</div>
           </div>
           <div className="kc-topbar-right">
             {schemaLoaded && (
@@ -1152,8 +1148,9 @@ export default function ChatPage() {
         <div className="kc-messages">
           {messages.length === 0 ? (
             <div className="kc-empty">
-              <div className="kc-empty-icon" style={{ background: '#25D366', color: '#fff' }}>
-                <WhatsAppLogo size={30} />
+              <div className="kc-empty-icon">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/logo.png" alt="VEDDARA" />
               </div>
               <h2>IA Analítico Veddara</h2>
               <p>Faça perguntas sobre ligações, operadores, campanhas e qualificações. Vou traduzir para SQL e trazer os resultados com análise.</p>
@@ -1175,9 +1172,11 @@ export default function ChatPage() {
                 return (
                   <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <div className={`kc-msg-row${msg.role === 'user' ? ' user' : ''}`}>
-                      <div className={`kc-avatar ${isAssistant ? 'ai' : 'user'}`} style={isAssistant ? { background: '#25D366', color: '#fff' } : undefined}>
+                      <div className={`kc-avatar ${isAssistant ? 'ai' : 'user'}`}>
                         {isAssistant ? (
-                          <WhatsAppLogo size={18} />
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                            <path d="M9.663 17h4.673M12 3v1m6.364 1.636-.707.707M21 12h-1M4 12H3m3.343-5.657-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
                         ) : (
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                             <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
