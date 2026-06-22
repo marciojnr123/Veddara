@@ -170,11 +170,9 @@ export default function VendedoresPage() {
   useEffect(() => {
     if (!vendId) { setDetalhe(null); return }
     setDetalhe(null)
-    const p = new URLSearchParams({ id: vendId })
-    if (inicio && fim) { p.set('inicio', inicio); p.set('fim', fim) }
-    fetch(`/api/vendedores/detalhe?${p.toString()}`)
+    fetch(`/api/vendedores/detalhe?id=${vendId}`)
       .then(r => r.json()).then(d => { if (d && !d.error) setDetalhe(d as DetalheVendedor) }).catch(() => {})
-  }, [vendId, inicio, fim])
+  }, [vendId])
   const escopo = vendedor ? [vendedor] : vendedores
   const fatTotal = escopo.reduce((s, v) => s + v.fat, 0)
   const notas = escopo.reduce((s, v) => s + v.notas, 0)
@@ -320,7 +318,7 @@ export default function VendedoresPage() {
 
               {/* Melhor mês */}
               <div className="kvnd-card">
-                <div className="kvnd-card-hdr"><h3 className="kvnd-card-title">Melhor mês</h3></div>
+                <div className="kvnd-card-hdr"><h3 className="kvnd-card-title">Melhor mês</h3><span className="kvnd-card-note">Histórico completo</span></div>
                 {!detalhe ? <div className="kvnd-sk" style={{ height: 80 }} /> : melhorMesObj ? (
                   <>
                     <div className="kvnd-mes">{nomeMes(melhorMesObj.anomes)}</div>

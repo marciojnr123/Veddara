@@ -16,13 +16,7 @@ const EMPRESA_ID = '929577C5-3B2C-459C-973E-C46211B8B251'
 const ST = 'Status IN (1, 100)'
 const ITEMF = 'AND ii.Status = 1 AND ii.ItemCode >= 1'
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const UUID_RE = /^[0-9A-Fa-f-]{8,40}$/
-function validData(s: string | null): string | null {
-  if (!s || !DATE_RE.test(s)) return null
-  const d = new Date(s + 'T00:00:00'); return Number.isNaN(d.getTime()) ? null : s
-}
-function toISO(d: Date): string { return d.toISOString().slice(0, 10) }
 
 export async function GET(req: NextRequest) {
   const session = getSession()
@@ -32,14 +26,7 @@ export async function GET(req: NextRequest) {
   const id = str(searchParams.get('id'))
   if (!UUID_RE.test(id)) return NextResponse.json({ error: 'id inválido' }, { status: 400 })
 
-  const inicio = validData(searchParams.get('inicio'))
-  const fim = validData(searchParams.get('fim'))
-  const temFiltro = !!(inicio && fim)
-  const fimMais1 = fim ? toISO(new Date(new Date(fim + 'T00:00:00').getTime() + 86400000)) : null
-  const fInvoice = temFiltro
-    ? `AND io.DateInvoiceOrder >= '${inicio}' AND io.DateInvoiceOrder < '${fimMais1}'`
-    : `AND io.DateInvoiceOrder >= '2024-07-01'`
-
+  // melhor mês e novos×recompra usam histórico completo (não dependem de data)
   const hoje = new Date()
   const mesIni = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-01`
 
@@ -49,10 +36,11 @@ export async function GET(req: NextRequest) {
 
   try {
     const [qMensal, qMes, qNR] = await Promise.all([
-      // faturamento por mês do vendedor (para "melhor mês")
+      // faturamento por mês do vendedor (para "melhor mês") — SEMPRE histórico
+      // completo, NÃO afetado pelo filtro de data da tela
       agentQuery(`SELECT YEAR(io.DateInvoiceOrder)*100 + MONTH(io.DateInvoiceOrder) AS anomes,
                          SUM(ii.TOTAL_SALE_PRICE) AS fat
-                  ${base} ${fInvoice}
+                  ${base}
                   GROUP BY YEAR(io.DateInvoiceOrder)*100 + MONTH(io.DateInvoiceOrder)
                   ORDER BY anomes`, 500),
       // faturamento do mês atual (para a meta B2C)
