@@ -17,6 +17,12 @@ const ST = 'Status IN (1, 100)'
 const ITEMF = 'AND ii.Status = 1 AND ii.ItemCode >= 1'
 
 const UUID_RE = /^[0-9A-Fa-f-]{8,40}$/
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+function validData(s: string | null): string | null {
+  if (!s || !DATE_RE.test(s)) return null
+  const d = new Date(s + 'T00:00:00'); return Number.isNaN(d.getTime()) ? null : s
+}
+function toISO(d: Date): string { return d.toISOString().slice(0, 10) }
 
 export async function GET(req: NextRequest) {
   const session = getSession()
@@ -26,13 +32,45 @@ export async function GET(req: NextRequest) {
   const id = str(searchParams.get('id'))
   if (!UUID_RE.test(id)) return NextResponse.json({ error: 'id inválido' }, { status: 400 })
 
-  // melhor mês e novos×recompra usam histórico completo (não dependem de data)
+  const inicio = validData(searchParams.get('inicio'))
+  const fim = validData(searchParams.get('fim'))
+  const temFiltro = !!(inicio && fim)
+  const fimMais1 = fim ? toISO(new Date(new Date(fim + 'T00:00:00').getTime() + 86400000)) : null
+  const periodo = temFiltro ? `AND io.DateInvoiceOrder >= '${inicio}' AND io.DateInvoiceOrder < '${fimMais1}'` : ''
+  const anomesIni = temFiltro && inicio ? Number(inicio.slice(0, 4)) * 100 + Number(inicio.slice(5, 7)) : 0
+
+  // melhor mês = histórico completo; novos×recompra respeita o filtro de data
   const hoje = new Date()
   const mesIni = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-01`
 
   const base = `FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
     JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
     WHERE io.${ST} ${ITEMF} AND io.SystemCustomerId = '${EMPRESA_ID}' AND io.SalespersonId = '${id}'`
+
+  // novos × recompra: com filtro → novo = 1ª compra do cliente (c/ este vendedor) dentro
+  // do período; recompra = já comprava antes. Sem filtro → 1 mês = novo, 2+ = recompra.
+  const qNRSql = temFiltro ? `
+    SELECT SUM(CASE WHEN f.fa < ${anomesIni} THEN 1 ELSE 0 END) AS recompra,
+           SUM(CASE WHEN f.fa >= ${anomesIni} THEN 1 ELSE 0 END) AS novos
+    FROM (
+      SELECT DISTINCT io.CustomerId AS cid
+      FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
+      WHERE io.${ST} AND io.SystemCustomerId = '${EMPRESA_ID}' AND io.SalespersonId = '${id}' ${periodo}
+    ) m
+    JOIN (
+      SELECT io2.CustomerId AS cid, MIN(YEAR(io2.DateInvoiceOrder)*100 + MONTH(io2.DateInvoiceOrder)) AS fa
+      FROM veddara.EZ_VEDDARA_INVOICE_ORDER io2
+      WHERE io2.${ST} AND io2.SystemCustomerId = '${EMPRESA_ID}' AND io2.SalespersonId = '${id}'
+      GROUP BY io2.CustomerId
+    ) f ON f.cid = m.cid` : `
+    SELECT SUM(CASE WHEN meses > 1 THEN 1 ELSE 0 END) AS recompra,
+           SUM(CASE WHEN meses = 1 THEN 1 ELSE 0 END) AS novos
+    FROM (
+      SELECT io.CustomerId, COUNT(DISTINCT YEAR(io.DateInvoiceOrder)*100 + MONTH(io.DateInvoiceOrder)) AS meses
+      FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
+      WHERE io.${ST} AND io.SystemCustomerId = '${EMPRESA_ID}' AND io.SalespersonId = '${id}'
+      GROUP BY io.CustomerId
+    ) t`
 
   try {
     const [qMensal, qMes, qNR] = await Promise.all([
@@ -45,16 +83,8 @@ export async function GET(req: NextRequest) {
                   ORDER BY anomes`, 500),
       // faturamento do mês atual (para a meta B2C)
       agentQuery(`SELECT SUM(ii.TOTAL_SALE_PRICE) AS fat ${base} AND io.DateInvoiceOrder >= '${mesIni}'`, 10),
-      // clientes do vendedor: novos (compraram em 1 mês) x recompra (em mais de 1 mês)
-      agentQuery(`
-        SELECT SUM(CASE WHEN meses > 1 THEN 1 ELSE 0 END) AS recompra,
-               SUM(CASE WHEN meses = 1 THEN 1 ELSE 0 END) AS novos
-        FROM (
-          SELECT io.CustomerId, COUNT(DISTINCT YEAR(io.DateInvoiceOrder)*100 + MONTH(io.DateInvoiceOrder)) AS meses
-          FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
-          WHERE io.${ST} AND io.SystemCustomerId = '${EMPRESA_ID}' AND io.SalespersonId = '${id}'
-          GROUP BY io.CustomerId
-        ) t`, 10),
+      // clientes do vendedor: novos × recompra (respeita o filtro de data)
+      agentQuery(qNRSql, 10),
     ])
 
     const dados: DetalheVendedor = {

@@ -170,9 +170,11 @@ export default function VendedoresPage() {
   useEffect(() => {
     if (!vendId) { setDetalhe(null); return }
     setDetalhe(null)
-    fetch(`/api/vendedores/detalhe?id=${vendId}`)
+    const p = new URLSearchParams({ id: vendId })
+    if (inicio && fim) { p.set('inicio', inicio); p.set('fim', fim) }
+    fetch(`/api/vendedores/detalhe?${p.toString()}`)
       .then(r => r.json()).then(d => { if (d && !d.error) setDetalhe(d as DetalheVendedor) }).catch(() => {})
-  }, [vendId])
+  }, [vendId, inicio, fim])
   const escopo = vendedor ? [vendedor] : vendedores
   const fatTotal = escopo.reduce((s, v) => s + v.fat, 0)
   const notas = escopo.reduce((s, v) => s + v.notas, 0)
@@ -185,8 +187,10 @@ export default function VendedoresPage() {
 
   // individual: comparativo com a média, melhor mês e meta
   const META_B2C = 20_000
-  const mediaEquipe = vendedores.length ? vendedores.reduce((s, v) => s + v.fat, 0) / vendedores.length : 0
-  const pctVsMedia = vendedor && mediaEquipe > 0 ? ((vendedor.fat - mediaEquipe) / mediaEquipe) * 100 : 0
+  // média da MESMA categoria do vendedor (B2B com B2B, B2C com B2C, etc.)
+  const mesmaCat = vendedor ? vendedores.filter(v => v.cat === vendedor.cat) : []
+  const mediaCat = mesmaCat.length ? mesmaCat.reduce((s, v) => s + v.fat, 0) / mesmaCat.length : 0
+  const pctVsMedia = vendedor && mediaCat > 0 ? ((vendedor.fat - mediaCat) / mediaCat) * 100 : 0
   const melhorMesObj = (detalhe?.mensal ?? []).reduce(
     (best, m) => (m.fat > (best?.fat ?? -1) ? m : best),
     null as null | { anomes: string; fat: number },
@@ -288,9 +292,9 @@ export default function VendedoresPage() {
             <div style={{ display: 'grid', gridTemplateColumns: vendedor.cat === 'b2c' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 16 }}>
               {/* Comparativo com a média (card gradiente) */}
               <div className="kvnd-kpi hero">
-                <div className="kvnd-kpi-label">Vs. média da equipe</div>
+                <div className="kvnd-kpi-label">Vs. média {CAT_LABEL[vendedor.cat]}</div>
                 <div className="kvnd-kpi-val">{pctVsMedia >= 0 ? '+' : ''}{pctVsMedia.toFixed(0)}%</div>
-                <div className="kvnd-kpi-sub">{pctVsMedia >= 0 ? 'acima' : 'abaixo'} da média · média {fmtMoeda(mediaEquipe)}</div>
+                <div className="kvnd-kpi-sub">{pctVsMedia >= 0 ? 'acima' : 'abaixo'} da média {CAT_LABEL[vendedor.cat]} · média {fmtMoeda(mediaCat)}</div>
               </div>
 
               {/* Meta do mês (apenas B2C) — donut */}

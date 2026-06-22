@@ -51,6 +51,7 @@ export async function GET(req: NextRequest) {
   const temFiltro = !!(inicio && fim)
   const fimMais1 = fim ? toISO(new Date(new Date(fim + 'T00:00:00').getTime() + 86400000)) : null
   const fInvoice = temFiltro ? `AND io.DateInvoiceOrder >= '${inicio}' AND io.DateInvoiceOrder < '${fimMais1}'` : ''
+  const fEstimate = temFiltro ? `AND eo.DateEstimateOrder >= '${inicio}' AND eo.DateEstimateOrder < '${fimMais1}'` : ''
 
   const anoAtual = new Date().getFullYear()
   const inicioAno = `${anoAtual}-01-01`
@@ -84,7 +85,7 @@ export async function GET(req: NextRequest) {
         SELECT sp.Firstname || ' ' || ISNULL(sp.LastName, '') AS nome, eo.Status, COUNT(DISTINCT eo.Id) AS qtd
         FROM veddara.EZ_VEDDARA_ESTIMATE_ORDER eo
         JOIN veddara.EZ_VEDDARA_SALE_SALESPERSON sp ON eo.SalespersonId = sp.Id
-        WHERE eo.SystemCustomerId = '${EMPRESA_ID}' AND eo.Status IN (99, 100)
+        WHERE eo.SystemCustomerId = '${EMPRESA_ID}' AND eo.Status IN (99, 100) ${fEstimate}
         GROUP BY sp.Firstname, sp.LastName, eo.Status`, 500),
       // faturamento por vendedor x mês (para o gráfico B2B x B2C x Sem representante)
       agentQuery(`
