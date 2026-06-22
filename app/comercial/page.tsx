@@ -187,17 +187,17 @@ const CSS = `
 .kcom-funil-side { font-size: 12px; color: var(--ink-3); flex-shrink: 0; }
 .kcom-funil-side b { color: var(--ink); font-size: 13px; }
 
-/* Funil de vendas (trapézios) */
-.kcom-funnel { display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 12px 0 6px; }
+/* Funil de conversão (camadas/trapézios contínuos) */
+.kcom-funnel { display: flex; flex-direction: column; align-items: stretch; gap: 5px; padding: 10px 0 4px; }
 .kcom-funnel-stage {
-  color: #fff; text-align: center; min-width: 150px;
-  padding: 12px 22px 14px;
-  clip-path: polygon(0 0, 100% 0, 92% 100%, 8% 100%);
-  display: flex; flex-direction: column; gap: 2px;
-  transition: width .3s;
+  color: #fff; text-align: center;
+  padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 3px;
+  filter: drop-shadow(0 2px 5px rgba(15, 23, 42, .18));
+  transition: clip-path .3s;
 }
-.kcom-funnel-stage-main { font-size: 15px; font-weight: 800; letter-spacing: -.01em; }
-.kcom-funnel-stage-sub { font-size: 11px; font-weight: 500; opacity: .92; }
+.kcom-funnel-stage-main { font-size: 14.5px; font-weight: 800; letter-spacing: -.01em; }
+.kcom-funnel-stage-sub { font-size: 12px; font-weight: 600; opacity: .95; }
 
 /* Tabela produtos */
 .kcom-tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
@@ -550,25 +550,32 @@ export default function ComercialPage() {
         <div className="kcom-row2">
           <div className="kcom-card">
             <div className="kcom-card-hdr">
-              <h3 className="kcom-card-title">Funil de vendas</h3>
+              <h3 className="kcom-card-title">Funil de conversão</h3>
               <span className="kcom-card-note">{temFiltro ? 'No período' : 'Histórico'}</span>
             </div>
             {funil ? (() => {
               const totalFunil = funil.convertidos + funil.abertos + funil.perdidos
               const stages = [
-                { label: 'Ganhos', sub: 'convertidos em pedido', val: funil.convertidos, grad: 'linear-gradient(135deg,#3b6fe4,#4b8ff0)' },
-                { label: 'Perdidos', sub: 'cancelados / expirados', val: funil.perdidos, grad: 'linear-gradient(135deg,#ef7a2a,#f7a44b)' },
-                { label: 'Em aberto', sub: `${fmtMoeda(funil.valorPipeline)} em pipeline`, val: funil.abertos, grad: 'linear-gradient(135deg,#36b8e0,#5bd0d0)' },
+                { label: 'Ganhos', val: funil.convertidos, grad: 'linear-gradient(135deg,#3b6fe4,#4b8ff0)' },
+                { label: 'Perdidos', val: funil.perdidos, grad: 'linear-gradient(135deg,#ef7a2a,#f7a44b)' },
+                { label: 'Em aberto', val: funil.abertos, grad: 'linear-gradient(135deg,#36b8e0,#5bd0d0)' },
               ]
               const maxV = Math.max(...stages.map(s => s.val), 1)
+              const larg = (v: number) => 34 + (v / maxV) * 66 // 34%..100%
               return (
                 <div className="kcom-funnel">
-                  {stages.map(s => (
-                    <div key={s.label} className="kcom-funnel-stage" style={{ width: `${Math.max((s.val / maxV) * 100, 38)}%`, background: s.grad }}>
-                      <div className="kcom-funnel-stage-main">{s.label} · {fmtNum(s.val)}</div>
-                      <div className="kcom-funnel-stage-sub">{totalFunil > 0 ? ((s.val / totalFunil) * 100).toFixed(1) : '0'}% · {s.sub}</div>
-                    </div>
-                  ))}
+                  {stages.map((s, i) => {
+                    const topW = larg(s.val)
+                    const botW = i < stages.length - 1 ? larg(stages[i + 1].val) : topW
+                    const clip = `polygon(${(100 - topW) / 2}% 0, ${(100 + topW) / 2}% 0, ${(100 + botW) / 2}% 100%, ${(100 - botW) / 2}% 100%)`
+                    const pct = totalFunil > 0 ? (s.val / totalFunil) * 100 : 0
+                    return (
+                      <div key={s.label} className="kcom-funnel-stage" style={{ background: s.grad, clipPath: clip, WebkitClipPath: clip }}>
+                        <div className="kcom-funnel-stage-main">{s.label}</div>
+                        <div className="kcom-funnel-stage-sub">{fmtNum(s.val)} · {pct.toFixed(1)}%</div>
+                      </div>
+                    )
+                  })}
                 </div>
               )
             })() : <div className="kcom-sk" style={{ height: 160 }} />}
