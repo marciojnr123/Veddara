@@ -232,7 +232,7 @@ export default function VendedoresPage() {
         <div className="kvnd-topbar">
           <div className="kvnd-brand-left"><VeddaraLogo height={70} /></div>
           <h1 className="kvnd-title"><em>Vendedores</em></h1>
-          <p className="kvnd-sub">{vendedor ? `Análise individual · ${vendedor.nome}` : 'Desempenho da equipe comercial'} · dados reais Sybase IQ</p>
+          <p className="kvnd-sub">{vendedor ? `Análise individual · ${vendedor.nome}` : 'Desempenho da equipe comercial'}</p>
         </div>
 
         <div className="kvnd-filtros">

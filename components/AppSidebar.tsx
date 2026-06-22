@@ -296,10 +296,16 @@ interface AppSidebarProps {
   hideLogo?: boolean
 }
 
+// Abas visíveis somente para admin
+const ADMIN_ONLY = new Set(['/dashboard', '/catalogo', '/usuarios'])
+
 export function AppSidebar({ children, onLogout, hideLogo }: AppSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const me = useMe()
+  // Enquanto o cargo não carrega, escondemos as abas restritas (evita "piscar"
+  // itens de admin para quem não é). Só aparecem quando confirmado role=admin.
+  const navItems = NAV_ITEMS.filter(i => !ADMIN_ONLY.has(i.href) || me?.role === 'admin')
   const compact = !children
 
   function handleLogout() {
@@ -323,7 +329,7 @@ export function AppSidebar({ children, onLogout, hideLogo }: AppSidebarProps) {
           )}
           <div className="app-rail-card">
             <nav className="app-rail-nav">
-              {NAV_ITEMS.map(item => (
+              {navItems.map(item => (
                 <Link
                   key={item.href}
                   href={item.href}
@@ -366,7 +372,7 @@ export function AppSidebar({ children, onLogout, hideLogo }: AppSidebarProps) {
         <div>
           <div className="app-sidebar-nav-label">Menu</div>
           <nav className="app-sidebar-nav">
-            {NAV_ITEMS.map(item => (
+            {navItems.map(item => (
               <Link
                 key={item.href}
                 href={item.href}
