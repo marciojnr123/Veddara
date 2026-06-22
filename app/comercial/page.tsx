@@ -8,6 +8,7 @@ import {
 } from 'recharts'
 import { AppSidebar, VeddaraLogo } from '@/components/AppSidebar'
 import { Greeting } from '@/components/Greeting'
+import { UserChip } from '@/components/UserChip'
 import { DateFilter } from '@/components/DateFilter'
 import type { DadosComercial } from '@/app/api/comercial/route'
 
@@ -69,15 +70,15 @@ const CSS = `
 
 .kcom-topbar { display: flex; align-items: center; justify-content: center; gap: 16px; position: relative; min-height: 42px; }
 .kcom-brand-left { position: absolute; left: 0; top: 50%; transform: translateY(-50%); display: flex; align-items: center; }
+.kcom-topbar-right { position: absolute; right: 0; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 10px; }
 .kcom-refresh-round {
-  position: absolute; right: 0; top: 50%; transform: translateY(-50%);
   width: 40px; height: 40px; border-radius: 50%;
-  display: grid; place-items: center; cursor: pointer;
+  display: grid; place-items: center; cursor: pointer; flex-shrink: 0;
   border: 1px solid var(--line); background: var(--surface); color: var(--ink-2);
   transition: background .12s, color .12s, transform .12s;
 }
 .kcom-refresh-round:hover { background: var(--surface-2); color: var(--ink); }
-.kcom-refresh-round:active { transform: translateY(-50%) scale(.93); }
+.kcom-refresh-round:active { transform: scale(.93); }
 .kcom-title {
   font-family: 'Instrument Serif', serif;
   font-size: 38px; font-weight: 400; letter-spacing: -0.02em;
@@ -306,11 +307,14 @@ export default function ComercialPage() {
         <div className="kcom-topbar">
           <div className="kcom-brand-left"><VeddaraLogo height={34} /></div>
           <DateFilter onChange={aplicarData} />
-          <button className="kcom-refresh-round" onClick={() => carregar(inicio, fim)} title="Atualizar" aria-label="Atualizar">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
+          <div className="kcom-topbar-right">
+            <button className="kcom-refresh-round" onClick={() => carregar(inicio, fim)} title="Atualizar" aria-label="Atualizar">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+            <UserChip />
+          </div>
         </div>
 
         {/* Saudação dinâmica com o nome do usuário logado */}
