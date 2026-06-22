@@ -179,6 +179,16 @@ const NAV_ITEMS = [
     ),
   },
   {
+    href: '/vendedores',
+    label: 'Vendedores',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M9 11a3 3 0 100-6 3 3 0 000 6zM16 11a2.5 2.5 0 100-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M3 20a6 6 0 0112 0M15 14.5a5 5 0 016 5.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    ),
+  },
+  {
     href: '/chat',
     label: 'Chat IA',
     icon: (
