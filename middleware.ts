@@ -9,9 +9,11 @@ export function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
-  // Verifica apenas existência do cookie — a validação JWT ocorre em Node.js
-  // dentro de cada API route e server component via getSession()
-  const token = req.cookies.get('auth_token')?.value
+  // Verifica apenas a presença do token (cookie ou header Bearer) — a validação
+  // do JWT ocorre em Node.js dentro de cada API route / server component.
+  const header = req.headers.get('authorization')
+  const bearer = header?.startsWith('Bearer ') ? header.slice(7).trim() : undefined
+  const token = req.cookies.get('auth_token')?.value || bearer
   if (!token) {
     if (pathname.startsWith('/api/')) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
