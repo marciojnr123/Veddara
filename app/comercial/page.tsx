@@ -323,6 +323,15 @@ export default function ComercialPage() {
       ? (dados?.diario ?? []).map(d => ({ label: `${d.dia.slice(6, 8)}/${d.dia.slice(4, 6)}`, faturamento: d.faturamento, notas: d.notas }))
       : (dados?.mensal ?? []).map(m => ({ label: nomeMes(m.anomes), faturamento: m.faturamento, notas: m.notas }))
   const anualData = dados?.anual ?? []
+  // Em mês único, o card "anual" vira comparação com o mesmo mês do ano passado
+  const comp = dados?.compAnoAnterior ?? null
+  const eMesUnico = granularidade === 'diario'
+  const evolucaoData = eMesUnico && comp
+    ? [
+        { ano: comp.labelAnterior, faturamento: comp.fatAnterior },
+        { ano: comp.labelAtual, faturamento: comp.fatAtual },
+      ]
+    : anualData
 
   return (
     <div className="kcom-root">
@@ -494,14 +503,14 @@ export default function ComercialPage() {
 
           <div className="kcom-card">
             <div className="kcom-card-hdr">
-              <h3 className="kcom-card-title">Evolução anual</h3>
-              <span className="kcom-card-note">Faturamento por ano</span>
+              <h3 className="kcom-card-title">{eMesUnico && comp ? 'Comparação Ano Passado' : 'Evolução anual'}</h3>
+              <span className="kcom-card-note">{eMesUnico && comp ? 'Mesmo mês no ano anterior' : 'Faturamento por ano'}</span>
             </div>
             {!dados ? <div className="kcom-sk" style={{ height: 260 }} />
-              : anualData.length === 0 ? <div className="kcom-empty" style={{ height: 260, display: 'grid', placeItems: 'center' }}>Sem dados no período</div>
+              : evolucaoData.length === 0 ? <div className="kcom-empty" style={{ height: 260, display: 'grid', placeItems: 'center' }}>Sem dados no período</div>
               : (
               <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={anualData} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
+                <BarChart data={evolucaoData} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
                   <defs>
                     <linearGradient id="kcom-bar-blue" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#4b8ff0" />
@@ -522,8 +531,8 @@ export default function ComercialPage() {
                     labelStyle={{ color: 'var(--ink)', fontWeight: 700, marginBottom: 4 }}
                   />
                   <Bar dataKey="faturamento" radius={[6, 6, 0, 0]} maxBarSize={48}>
-                    {anualData.map((_, i) => (
-                      <Cell key={i} fill={i === anualData.length - 1 ? 'url(#kcom-bar-orange)' : 'url(#kcom-bar-blue)'} />
+                    {evolucaoData.map((_, i) => (
+                      <Cell key={i} fill={i === evolucaoData.length - 1 ? 'url(#kcom-bar-orange)' : 'url(#kcom-bar-blue)'} />
                     ))}
                   </Bar>
                 </BarChart>

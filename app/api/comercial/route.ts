@@ -24,6 +24,8 @@ export interface DadosComercial {
   topProdutos: Array<{ nome: string; faturamento: number }>
   funil: { convertidos: number; perdidos: number; abertos: number; valorPipeline: number }
   novosClientes: Array<{ ano: string; qtd: number }>
+  // comparação do mês selecionado vs o mesmo mês no ano anterior (só quando 1 mês)
+  compAnoAnterior: { labelAtual: string; labelAnterior: string; fatAtual: number; fatAnterior: number } | null
 }
 
 // Faturamento igual ao BI: nota Status 1 ou 100 (inclui faturadas com NF pendente/999999),
@@ -179,9 +181,23 @@ export async function GET(req: NextRequest) {
         ORDER BY dia`, 100))
     }
 
+    // Comparação ano anterior (mesmo mês/dias do ano passado) — só quando 1 mês
+    let idxComp = -1
+    if (mesUnico && inicio && fimMais1) {
+      const prevIni = `${Number(inicio.slice(0, 4)) - 1}${inicio.slice(4)}`
+      const prevFimM1 = `${Number(fimMais1.slice(0, 4)) - 1}${fimMais1.slice(4)}`
+      idxComp = queries.length
+      queries.push(agentQuery(`
+        SELECT SUM(ii.TOTAL_SALE_PRICE) AS fat
+        FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
+        JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
+        WHERE io.${ST} ${fEmp} ${ITEMF} AND io.DateInvoiceOrder >= '${prevIni}' AND io.DateInvoiceOrder < '${prevFimM1}'`, 10))
+    }
+
     const res = await Promise.all(queries)
     const [qPeriodo, qAnual, qMensal, qClientes, qVendedores, qProdutos, qFunil, qAtivos, qNovos, qPrev] = res
     const qDiario = idxDiario >= 0 ? res[idxDiario] : null
+    const qComp = idxComp >= 0 ? res[idxComp] : null
 
     const faturamentoPeriodo = num(qPeriodo.rows[0]?.[0])
     const notasPeriodo = num(qPeriodo.rows[0]?.[1])
@@ -216,6 +232,20 @@ export async function GET(req: NextRequest) {
       ? (convertidos / (convertidos + perdidos)) * 100
       : 0
 
+    // Comparação com o mesmo mês do ano anterior
+    let compAnoAnterior: DadosComercial['compAnoAnterior'] = null
+    if (mesUnico && qComp && inicio) {
+      const MES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+      const mi = Number(inicio.slice(5, 7)) - 1
+      const ya = Number(inicio.slice(0, 4))
+      compAnoAnterior = {
+        labelAtual: `${MES[mi]}/${ya}`,
+        labelAnterior: `${MES[mi]}/${ya - 1}`,
+        fatAtual: faturamentoPeriodo,
+        fatAnterior: num(qComp.rows[0]?.[0]),
+      }
+    }
+
     const dados: DadosComercial = {
       periodo: { inicio, fim },
       kpis: {
@@ -238,6 +268,7 @@ export async function GET(req: NextRequest) {
       topProdutos: qProdutos.rows.map(r => ({ nome: str(r[0]), faturamento: num(r[1]) })),
       funil: { convertidos, perdidos, abertos, valorPipeline },
       novosClientes: qNovos.rows.map(r => ({ ano: str(r[0]), qtd: num(r[1]) })),
+      compAnoAnterior,
     }
 
     return NextResponse.json(dados)
