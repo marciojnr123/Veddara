@@ -13,7 +13,11 @@ const GREETING_CSS = `
   margin: 0 0 4px;
   line-height: 1.1;
 }
-.vgreet h2 .nome { color: #5fb4e0; }
+.vgreet h2 .nome {
+  background: linear-gradient(90deg, #2563EB, #22C3DD);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
 .vgreet p { font-size: 15px; color: #94a3b8; margin: 0; }
 @media (max-width: 640px) { .vgreet h2 { font-size: 28px; } }
 `
