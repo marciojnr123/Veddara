@@ -28,7 +28,7 @@ function nomeMes(anomes: string): string {
   const ano = anomes.slice(0, 4); const mes = parseInt(anomes.slice(4), 10)
   return `${m[mes - 1]}/${ano.slice(2)}`
 }
-const CAT_LABEL: Record<CatVend, string> = { b2b: 'B2B', b2c: 'B2C', sem: 'Sem representante' }
+const CAT_LABEL: Record<CatVend, string> = { b2b: 'B2B', b2c: 'B2C', sem: 'Sem representante', parceiro: 'Parceiro' }
 
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap');
@@ -167,9 +167,10 @@ export default function VendedoresPage() {
 
   const rankAno = dados?.rankAno ?? []
   const rankMes = dados?.rankMes ?? []
-  const rankB2B = [...vendedores].filter(v => v.cat === 'b2b').sort((a, b) => b.fat - a.fat)
+  const rankB2B = [...vendedores].filter(v => v.cat === 'b2b').sort((a, b) => b.fat - a.fat).slice(0, 10)
   const rankB2C = [...vendedores].filter(v => v.cat === 'b2c').sort((a, b) => b.fat - a.fat)
-  const mensal = (dados?.mensalCanal ?? []).map(m => ({ label: nomeMes(m.anomes), b2b: m.b2b, b2c: m.b2c, sem: m.sem }))
+  const rankParceiros = [...vendedores].filter(v => v.cat === 'parceiro').sort((a, b) => b.fat - a.fat)
+  const mensal = (dados?.mensalCanal ?? []).map(m => ({ label: nomeMes(m.anomes), b2b: m.b2b, b2c: m.b2c, sem: m.sem, parceiro: m.parceiro }))
 
   function Ranking({ titulo, nota, itens, max }: { titulo: string; nota: string; itens: Array<{ nome: string; fat: number }>; max: number }) {
     return (
@@ -224,13 +225,15 @@ export default function VendedoresPage() {
           /* ===== EQUIPE (real) ===== */
           <>
             <div className="kvnd-row">
-              <Ranking titulo="Ranking — Ano" nota={`Faturamento (${new Date().getFullYear()})`} itens={rankAno} max={rankAno[0]?.fat ?? 1} />
-              <Ranking titulo="Ranking — Mês" nota="Faturamento (mês atual)" itens={rankMes} max={rankMes[0]?.fat ?? 1} />
+              <Ranking titulo="Ranking — Ano" nota={`Top 10 · ${new Date().getFullYear()}`} itens={rankAno.slice(0, 10)} max={rankAno[0]?.fat ?? 1} />
+              <Ranking titulo="Ranking — Mês" nota="Top 10 · mês atual" itens={rankMes.slice(0, 10)} max={rankMes[0]?.fat ?? 1} />
             </div>
             <div className="kvnd-row">
-              <Ranking titulo="Ranking B2B" nota="Por faturamento" itens={rankB2B} max={rankB2B[0]?.fat ?? 1} />
+              <Ranking titulo="Ranking B2B" nota="Top 10 · por faturamento" itens={rankB2B} max={rankB2B[0]?.fat ?? 1} />
               <Ranking titulo="Ranking B2C" nota="Por faturamento · meta R$ 20k/mês" itens={rankB2C} max={rankB2C[0]?.fat ?? 1} />
             </div>
+
+            <Ranking titulo="Parceiros" nota="Empresas parceiras que vendem para nós · por faturamento" itens={rankParceiros} max={rankParceiros[0]?.fat ?? 1} />
             <div className="kvnd-card">
               <div className="kvnd-card-hdr"><h3 className="kvnd-card-title">Vendas: B2B × B2C × Sem representante</h3><span className="kvnd-card-note">Faturamento mensal por canal</span></div>
               {!dados ? <div className="kvnd-sk" style={{ height: 300 }} /> : mensal.length === 0 ? <div className="kvnd-empty" style={{ height: 300, display: 'grid', placeItems: 'center' }}>Sem dados no período</div> : (
@@ -239,11 +242,12 @@ export default function VendedoresPage() {
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
                     <XAxis dataKey="label" {...axisProps} interval="preserveStartEnd" minTickGap={16} />
                     <YAxis tickFormatter={fmtAxis} {...axisProps} width={42} />
-                    <Tooltip contentStyle={tooltipStyle} formatter={(v, n) => [fmtMoedaFull(Number(v)), n === 'b2b' ? 'B2B' : n === 'b2c' ? 'B2C' : 'Sem representante']} />
-                    <Legend formatter={v => v === 'b2b' ? 'B2B' : v === 'b2c' ? 'B2C' : 'Sem representante'} iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                    <Tooltip contentStyle={tooltipStyle} formatter={(v, n) => [fmtMoedaFull(Number(v)), n === 'b2b' ? 'B2B' : n === 'b2c' ? 'B2C' : n === 'sem' ? 'Sem representante' : 'Parceiros']} />
+                    <Legend formatter={v => v === 'b2b' ? 'B2B' : v === 'b2c' ? 'B2C' : v === 'sem' ? 'Sem representante' : 'Parceiros'} iconType="circle" wrapperStyle={{ fontSize: 12 }} />
                     <Line type="monotone" dataKey="b2b" stroke="#2563EB" strokeWidth={2.5} dot={false} />
                     <Line type="monotone" dataKey="b2c" stroke="#22C3DD" strokeWidth={2.5} dot={false} />
                     <Line type="monotone" dataKey="sem" stroke="#F97316" strokeWidth={2.5} dot={false} />
+                    <Line type="monotone" dataKey="parceiro" stroke="#8b5cf6" strokeWidth={2.5} dot={false} />
                   </LineChart>
                 </ResponsiveContainer>
               )}

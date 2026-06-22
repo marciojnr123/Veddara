@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { agentQuery } from '@/lib/agent'
 
-export type CatVend = 'b2b' | 'b2c' | 'sem'
+export type CatVend = 'b2b' | 'b2c' | 'sem' | 'parceiro'
 export interface DadosVendedores {
   periodo: { inicio: string | null; fim: string | null }
   vendedores: Array<{ nome: string; cat: CatVend; fat: number; notas: number; clientes: number; comissao: number; ganhos: number; perdidos: number }>
   rankAno: Array<{ nome: string; fat: number }>
   rankMes: Array<{ nome: string; fat: number }>
-  mensalCanal: Array<{ anomes: string; b2b: number; b2c: number; sem: number }>
+  mensalCanal: Array<{ anomes: string; b2b: number; b2c: number; sem: number; parceiro: number }>
 }
 
 const num = (v: unknown): number => { const n = Number(v); return Number.isFinite(n) ? n : 0 }
@@ -32,8 +32,10 @@ function norm(s: string): string {
 }
 const B2C = ['FABIO PINHEIRO', 'LYGIA RODRIGUES', 'DENIS COMISSO', 'INGRID FRAGOSO'].map(norm)
 const SEM = ['CARINA CAVALHEIRO', 'BIANCA MARIA PEREIRA DA COSTA', 'VENDAS DA VEDDARA'].map(norm)
+const PARCEIRO = ['CANNACARE LLC', 'FLEXUS SOLUTION LLC', 'HEILEN', 'CANNECT SERVICOS DE INTERNET S/A', 'MYGRAZZ INTERMEDIACAO DE NEGOCIOS LTDA'].map(norm)
 function categoria(nome: string): CatVend {
   const n = norm(nome)
+  if (PARCEIRO.some(x => n === x || n.startsWith(x) || x.startsWith(n))) return 'parceiro'
   if (B2C.some(x => n === x || n.startsWith(x))) return 'b2c'
   if (SEM.some(x => n === x || n.startsWith(x) || x.startsWith(n))) return 'sem'
   return 'b2b'
@@ -116,12 +118,12 @@ export async function GET(req: NextRequest) {
     const rankMes = qMes.rows.map(r => ({ nome: str(r[0]), fat: num(r[1]) }))
 
     // mensal por canal
-    const mensalMap: Record<string, { b2b: number; b2c: number; sem: number }> = {}
+    const mensalMap: Record<string, { b2b: number; b2c: number; sem: number; parceiro: number }> = {}
     for (const r of qMensal.rows) {
       const cat = categoria(str(r[0]))
       const anomes = str(r[1]); const fat = num(r[2])
       if (!anomes) continue
-      if (!mensalMap[anomes]) mensalMap[anomes] = { b2b: 0, b2c: 0, sem: 0 }
+      if (!mensalMap[anomes]) mensalMap[anomes] = { b2b: 0, b2c: 0, sem: 0, parceiro: 0 }
       mensalMap[anomes][cat] += fat
     }
     const mensalCanal = Object.entries(mensalMap)
