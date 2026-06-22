@@ -34,10 +34,6 @@ function nomeMes(anomes: string): string {
   const mes = parseInt(anomes.slice(4), 10)
   return `${m[mes - 1]}/${ano.slice(2)}`
 }
-function fmtDataBR(iso: string): string {
-  const [a, m, d] = iso.split('-')
-  return `${d}/${m}/${a}`
-}
 
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap');
@@ -69,10 +65,19 @@ const CSS = `
   color: var(--ink);
 }
 
-.kcom-main { padding: 26px 30px 48px; display: flex; flex-direction: column; gap: 20px; min-width: 0; overflow-y: auto; }
+.kcom-main { padding: 18px 30px 48px; display: flex; flex-direction: column; gap: 14px; min-width: 0; overflow-y: auto; }
 
-.kcom-topbar { display: flex; align-items: flex-start; justify-content: center; gap: 16px; flex-wrap: wrap; position: relative; text-align: center; }
+.kcom-topbar { display: flex; align-items: center; justify-content: center; gap: 16px; position: relative; min-height: 42px; }
 .kcom-brand-left { position: absolute; left: 0; top: 50%; transform: translateY(-50%); display: flex; align-items: center; }
+.kcom-refresh-round {
+  position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+  width: 40px; height: 40px; border-radius: 50%;
+  display: grid; place-items: center; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink-2);
+  transition: background .12s, color .12s, transform .12s;
+}
+.kcom-refresh-round:hover { background: var(--surface-2); color: var(--ink); }
+.kcom-refresh-round:active { transform: translateY(-50%) scale(.93); }
 .kcom-title {
   font-family: 'Instrument Serif', serif;
   font-size: 38px; font-weight: 400; letter-spacing: -0.02em;
@@ -272,9 +277,6 @@ export default function ComercialPage() {
 
   const k = dados?.kpis
   const temFiltro = !!(dados?.periodo.inicio && dados?.periodo.fim)
-  const labelPeriodo = temFiltro && dados
-    ? `${fmtDataBR(dados.periodo.inicio!)} – ${fmtDataBR(dados.periodo.fim!)}`
-    : 'Histórico completo'
   const labelComparacao = temFiltro ? 'vs período anterior' : 'vs ano anterior'
 
   const maxCliente = Math.max(...(dados?.topClientes.map(c => c.faturamento) ?? [1]))
@@ -300,27 +302,19 @@ export default function ComercialPage() {
       <main className="kcom-main">
 
         {/* Header */}
+        {/* Top bar: logo · filtro de data · atualizar */}
         <div className="kcom-topbar">
-          <div className="kcom-brand-left"><VeddaraLogo height={70} /></div>
-          <div>
-            <h1 className="kcom-title"><em>Comercial</em></h1>
-            <p className="kcom-sub">Período: <strong>{labelPeriodo}</strong></p>
-          </div>
-          <button className="kcom-refresh" style={{ position: 'absolute', right: 0, top: 0 }} onClick={() => carregar(inicio, fim)}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+          <div className="kcom-brand-left"><VeddaraLogo height={34} /></div>
+          <DateFilter onChange={aplicarData} />
+          <button className="kcom-refresh-round" onClick={() => carregar(inicio, fim)} title="Atualizar" aria-label="Atualizar">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
               <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
-            Atualizar
           </button>
         </div>
 
         {/* Saudação dinâmica com o nome do usuário logado */}
         <Greeting />
-
-        {/* Filtro de data (dropdown centralizado) */}
-        <div style={{ display: 'flex', justifyContent: 'center' }}>
-          <DateFilter onChange={aplicarData} />
-        </div>
 
         {erro && (
           <div className="kcom-card" style={{ color: '#dc2626', fontSize: 13 }}>

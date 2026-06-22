@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 
 const GREETING_CSS = `
-.vgreet { margin: 6px 0 18px; }
+.vgreet { margin: 2px 0 0; }
 .vgreet h2 {
   font-family: Georgia, 'Times New Roman', serif;
   font-weight: 700;
