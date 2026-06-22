@@ -344,7 +344,7 @@ export default function ComercialPage() {
         {/* Header */}
         {/* Top bar: logo · filtro de data · atualizar */}
         <div className="kcom-topbar">
-          <div className="kcom-brand-left"><VeddaraLogo height={48} /></div>
+          <div className="kcom-brand-left"><VeddaraLogo height={70} /></div>
           <DateFilter onChange={aplicarData} />
           <div className="kcom-topbar-right">
             <button className="kcom-refresh-round" onClick={() => carregar(inicio, fim)} title="Atualizar" aria-label="Atualizar">
