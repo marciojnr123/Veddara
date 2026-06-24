@@ -316,10 +316,12 @@ export default function ComercialPage() {
   const funil = dados?.funil
   const funilMax = Math.max(funil?.convertidos ?? 1, funil?.perdidos ?? 1, funil?.abertos ?? 1)
 
-  // quando o período é de um único mês, o backend manda faturamento diário
+  // único mês → faturamento diário; único dia → faturamento por hora
   const granularidade = dados?.granularidade ?? 'mensal'
   const serieFat: Array<{ label: string; faturamento: number; notas: number }> =
-    granularidade === 'diario'
+    granularidade === 'horario'
+      ? (dados?.horario ?? []).map(h => ({ label: `${String(h.hora).padStart(2, '0')}h`, faturamento: h.faturamento, notas: h.notas }))
+      : granularidade === 'diario'
       ? (dados?.diario ?? []).map(d => ({ label: `${d.dia.slice(6, 8)}/${d.dia.slice(4, 6)}`, faturamento: d.faturamento, notas: d.notas }))
       : (dados?.mensal ?? []).map(m => ({ label: nomeMes(m.anomes), faturamento: m.faturamento, notas: m.notas }))
   const anualData = dados?.anual ?? []
@@ -468,8 +470,8 @@ export default function ComercialPage() {
         <div className="kcom-row2">
           <div className="kcom-card">
             <div className="kcom-card-hdr">
-              <h3 className="kcom-card-title">{granularidade === 'diario' ? 'Faturamento diário' : 'Faturamento mensal'}</h3>
-              <span className="kcom-card-note">{granularidade === 'diario' ? 'Por dia no mês' : (temFiltro ? 'Dentro do período' : 'Últimos ~24 meses')}</span>
+              <h3 className="kcom-card-title">{granularidade === 'horario' ? 'Faturamento por hora' : granularidade === 'diario' ? 'Faturamento diário' : 'Faturamento mensal'}</h3>
+              <span className="kcom-card-note">{granularidade === 'horario' ? 'Por hora no dia' : granularidade === 'diario' ? 'Por dia no mês' : (temFiltro ? 'Dentro do período' : 'Últimos ~24 meses')}</span>
             </div>
             {!dados ? <div className="kcom-sk" style={{ height: 260 }} />
               : serieFat.length === 0 ? <div className="kcom-empty" style={{ height: 260, display: 'grid', placeItems: 'center' }}>Sem dados no período</div>
