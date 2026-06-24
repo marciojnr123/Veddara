@@ -17,8 +17,7 @@ export interface DadosComercial {
   }
   mensal: Array<{ anomes: string; faturamento: number; notas: number }>
   diario: Array<{ dia: string; faturamento: number; notas: number }>
-  horario: Array<{ hora: number; faturamento: number; notas: number }>
-  granularidade: 'mensal' | 'diario' | 'horario'
+  granularidade: 'mensal' | 'diario'
   anual: Array<{ ano: string; faturamento: number; notas: number }>
   topClientes: Array<{ nome: string; faturamento: number; notas: number }>
   topVendedores: Array<{ nome: string; faturamento: number; notas: number }>
@@ -65,8 +64,6 @@ export async function GET(req: NextRequest) {
   const temFiltro = !!(inicio && fim)
   // período de um único mês (filtro "Mês" ou DE/ATÉ dentro do mesmo mês) → usa faturamento diário
   const mesUnico = !!(inicio && fim && inicio.slice(0, 7) === fim.slice(0, 7))
-  // período de um único dia (ex.: "Hoje") → usa faturamento por hora
-  const diaUnico = !!(inicio && fim && inicio === fim)
 
   // Cláusula de período para colunas de data (data inclusiva no fim com +1 dia)
   const fimMais1 = fim ? toISO(new Date(new Date(fim + 'T00:00:00').getTime() + 86400000)) : null
@@ -170,9 +167,9 @@ export async function GET(req: NextRequest) {
         WHERE io.${ST} ${fEmp} ${ITEMF} AND io.DateInvoiceOrder >= '${prevInicio}' AND io.DateInvoiceOrder < '${prevFimMais1}'`, 10))
     }
 
-    // Faturamento diário (só quando o período é de um único mês, e não um único dia)
+    // Faturamento diário (só quando o período é de um único mês)
     let idxDiario = -1
-    if (mesUnico && !diaUnico) {
+    if (mesUnico) {
       idxDiario = queries.length
       queries.push(agentQuery(`
         SELECT YEAR(io.DateInvoiceOrder)*10000 + MONTH(io.DateInvoiceOrder)*100 + DAY(io.DateInvoiceOrder) AS dia,
@@ -184,23 +181,9 @@ export async function GET(req: NextRequest) {
         ORDER BY dia`, 100))
     }
 
-    // Faturamento por hora (só quando o período é de um único dia, ex.: "Hoje")
-    let idxHora = -1
-    if (diaUnico) {
-      idxHora = queries.length
-      queries.push(agentQuery(`
-        SELECT HOUR(io.DateInvoiceOrder) AS hora,
-               SUM(ii.TOTAL_SALE_PRICE) AS fat, COUNT(DISTINCT io.Id) AS notas
-        FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
-        JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
-        WHERE io.${ST} ${fEmp} ${ITEMF} ${fInvoice}
-        GROUP BY HOUR(io.DateInvoiceOrder)
-        ORDER BY hora`, 50))
-    }
-
-    // Comparação ano anterior (mesmo mês/dias do ano passado) — só quando 1 mês (não 1 dia)
+    // Comparação ano anterior (mesmo mês/dias do ano passado) — só quando 1 mês
     let idxComp = -1
-    if (mesUnico && !diaUnico && inicio && fimMais1) {
+    if (mesUnico && inicio && fimMais1) {
       const prevIni = `${Number(inicio.slice(0, 4)) - 1}${inicio.slice(4)}`
       const prevFimM1 = `${Number(fimMais1.slice(0, 4)) - 1}${fimMais1.slice(4)}`
       idxComp = queries.length
@@ -214,7 +197,6 @@ export async function GET(req: NextRequest) {
     const res = await Promise.all(queries)
     const [qPeriodo, qAnual, qMensal, qClientes, qVendedores, qProdutos, qFunil, qAtivos, qNovos, qPrev] = res
     const qDiario = idxDiario >= 0 ? res[idxDiario] : null
-    const qHora = idxHora >= 0 ? res[idxHora] : null
     const qComp = idxComp >= 0 ? res[idxComp] : null
 
     const faturamentoPeriodo = num(qPeriodo.rows[0]?.[0])
@@ -280,8 +262,7 @@ export async function GET(req: NextRequest) {
       anual: qAnual.rows.map(r => ({ ano: str(r[0]), faturamento: num(r[1]), notas: num(r[2]) })),
       mensal: qMensal.rows.map(r => ({ anomes: str(r[0]), faturamento: num(r[1]), notas: num(r[2]) })),
       diario: qDiario ? qDiario.rows.map(r => ({ dia: str(r[0]), faturamento: num(r[1]), notas: num(r[2]) })) : [],
-      horario: qHora ? qHora.rows.map(r => ({ hora: num(r[0]), faturamento: num(r[1]), notas: num(r[2]) })) : [],
-      granularidade: diaUnico ? 'horario' : mesUnico ? 'diario' : 'mensal',
+      granularidade: mesUnico ? 'diario' : 'mensal',
       topClientes: qClientes.rows.map(r => ({ nome: str(r[0]), faturamento: num(r[1]), notas: num(r[2]) })),
       topVendedores: qVendedores.rows.map(r => ({ nome: str(r[0]), faturamento: num(r[1]), notas: num(r[2]) })),
       topProdutos: qProdutos.rows.map(r => ({ nome: str(r[0]), faturamento: num(r[1]) })),
