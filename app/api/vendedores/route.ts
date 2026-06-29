@@ -30,7 +30,7 @@ function toISO(d: Date): string { return d.toISOString().slice(0, 10) }
 function norm(s: string): string {
   return s.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim()
 }
-const B2C = ['FABIO PINHEIRO', 'LYGIA RODRIGUES', 'DENIS COMISSO', 'INGRID FRAGOSO'].map(norm)
+const B2C = ['FABIO PINHEIRO', 'LYGIA RODRIGUES', 'DENIS COMISSO', 'INGRID FRAGOSO', 'RENATA ANDRAUS'].map(norm)
 const SEM = ['CARINA CAVALHEIRO', 'BIANCA MARIA PEREIRA DA COSTA', 'VENDAS DA VEDDARA'].map(norm)
 const PARCEIRO = ['CANNACARE LLC', 'FLEXUS SOLUTION LLC', 'HEILEN', 'CANNECT SERVICOS DE INTERNET S/A', 'MYGRAZZ INTERMEDIACAO DE NEGOCIOS LTDA'].map(norm)
 function categoria(nome: string): CatVend {
