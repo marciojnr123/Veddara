@@ -49,8 +49,8 @@ function MetaDonut({ valor, meta }: { valor: number; meta: number }) {
       <svg className="kcom-meta-ring" viewBox="0 0 36 36">
         <path className="kcom-meta-track" d={ARC} />
         <path className="kcom-meta-prog" d={ARC} strokeDasharray={`${dash} 100`} />
-        <text x="18" y="17" className="kcom-meta-pct">{pctLabel}%</text>
-        <text x="18" y="22" className="kcom-meta-lbl">da meta</text>
+        <text x="18" y="16" className="kcom-meta-pct">{pctLabel}%</text>
+        <text x="18" y="22.5" className="kcom-meta-lbl">da meta</text>
       </svg>
       <div className="kcom-meta-sub">{fmtMoeda(valor)} de {fmtMoeda(meta)}</div>
     </div>
@@ -106,8 +106,8 @@ const CSS = `
 .kcom-meta-ring { width: 96px; height: 96px; }
 .kcom-meta-track { fill: none; stroke: #eef2fb; stroke-width: 3.4; }
 .kcom-meta-prog { fill: none; stroke: #3b6fe4; stroke-width: 3.4; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; transition: stroke-dasharray .6s ease; }
-.kcom-meta-pct { fill: #3b6fe4; font-size: 8px; font-weight: 800; text-anchor: middle; font-family: inherit; }
-.kcom-meta-lbl { fill: #94a3b8; font-size: 3.3px; font-weight: 600; text-anchor: middle; font-family: inherit; }
+.kcom-meta-pct { fill: #3b6fe4; font-size: 8px; font-weight: 800; text-anchor: middle; dominant-baseline: central; font-family: inherit; }
+.kcom-meta-lbl { fill: #94a3b8; font-size: 3.3px; font-weight: 600; text-anchor: middle; dominant-baseline: central; font-family: inherit; }
 .kcom-meta-sub { font-size: 11.5px; color: #94a3b8; font-weight: 600; }
 .kcom-title {
   font-family: 'Instrument Serif', serif;
@@ -428,7 +428,7 @@ export default function ComercialPage() {
             <div className="kcom-kpi">
               <div className="kcom-kpi-label">Meta do mês <span style={{ color: 'var(--ink-3)', fontWeight: 600 }}>· {fmtMoeda(META_EMPRESA)}</span></div>
               {k ? (
-                <MetaDonut valor={k.faturamentoPeriodo} meta={META_EMPRESA} />
+                <MetaDonut valor={k.faturamentoMeta} meta={META_EMPRESA} />
               ) : <div className="kcom-sk" style={{ height: 40 }} />}
             </div>
           ) : (

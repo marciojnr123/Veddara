@@ -130,8 +130,8 @@ export async function GET(req: NextRequest) {
                   ${base}
                   GROUP BY YEAR(io.DateInvoiceOrder)*100 + MONTH(io.DateInvoiceOrder)
                   ORDER BY anomes`, 500),
-      // faturamento do mês atual (para a meta B2C)
-      agentQuery(`SELECT SUM(ii.TOTAL_SALE_PRICE) AS fat ${base} AND io.DateInvoiceOrder >= '${mesIni}'`, 10),
+      // faturamento do mês atual SEM frete (para a meta B2C — meta é só de produtos)
+      agentQuery(`SELECT SUM(CASE WHEN UPPER(ii.Description) LIKE '%FRETE%' THEN 0 ELSE ii.TOTAL_SALE_PRICE END) AS fat ${base} AND io.DateInvoiceOrder >= '${mesIni}'`, 10),
       // clientes do vendedor: novos × recompra (respeita o filtro de data)
       agentQuery(qNRSql, 10),
       // evolução diária do vendedor no mês de referência

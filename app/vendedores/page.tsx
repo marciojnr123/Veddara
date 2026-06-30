@@ -32,6 +32,21 @@ function nomeMes(anomes: string): string {
 }
 const CAT_LABEL: Record<CatVend, string> = { b2b: 'B2B', b2c: 'B2C', sem: 'Sem representante', parceiro: 'Parceiro' }
 
+// Metas mensais (de produtos, sem frete) por vendedor B2C. Default 20k.
+function normNome(s: string): string {
+  return s.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim()
+}
+const METAS_B2C: Record<string, number> = {
+  'LYGIA RODRIGUES': 19_000,
+  'DENIS COMISSO': 18_000,
+  'INGRID FRAGOSO': 18_000,
+  'FABIO PINHEIRO': 15_000,
+  'RENATA ANDRAUS': 15_000,
+}
+function metaDoVendedor(nome: string): number {
+  return METAS_B2C[normNome(nome)] ?? 20_000
+}
+
 // Ponto no gráfico só no fim da semana (linha evolui diária, marca semanal)
 function WeekDot(props: { cx?: number; cy?: number; stroke?: string; index?: number; payload?: { marker?: boolean } }) {
   const { cx, cy, stroke, index, payload } = props
@@ -198,7 +213,7 @@ export default function VendedoresPage() {
   const maior = [...vendedores].sort((a, b) => b.fat - a.fat)[0]
 
   // individual: comparativo com a média, melhor mês e meta
-  const META_B2C = 20_000
+  const META_B2C = vendedor ? metaDoVendedor(vendedor.nome) : 20_000
   // média da MESMA categoria do vendedor (B2B com B2B, B2C com B2C, etc.)
   const mesmaCat = vendedor ? vendedores.filter(v => v.cat === vendedor.cat) : []
   const mediaCat = mesmaCat.length ? mesmaCat.reduce((s, v) => s + v.fat, 0) / mesmaCat.length : 0
@@ -330,7 +345,7 @@ export default function VendedoresPage() {
               {/* Meta do mês (apenas B2C) — donut */}
               {vendedor.cat === 'b2c' && (
                 <div className="kvnd-card">
-                  <div className="kvnd-card-hdr"><h3 className="kvnd-card-title">Meta do mês — B2C</h3><span className="kvnd-card-note">R$ 20.000 / mês</span></div>
+                  <div className="kvnd-card-hdr"><h3 className="kvnd-card-title">Meta do mês — B2C</h3><span className="kvnd-card-note">{fmtMoedaFull(META_B2C)} / mês</span></div>
                   {!detalhe ? <div className="kvnd-sk" style={{ height: 140 }} /> : (
                     <>
                       <div className="kvnd-donut">
@@ -344,7 +359,7 @@ export default function VendedoresPage() {
                         </ResponsiveContainer>
                         <div className="kvnd-donut-center"><div className="big" style={{ color: pctMeta >= 100 ? 'var(--green)' : 'var(--blue)' }}>{pctMeta.toFixed(0)}%</div><div className="lbl">da meta</div></div>
                       </div>
-                      <div className="kvnd-kpi-sub" style={{ textAlign: 'center', marginTop: 6 }}>{fmtMoedaFull(fatMesAtual)} de R$ 20.000</div>
+                      <div className="kvnd-kpi-sub" style={{ textAlign: 'center', marginTop: 6 }}>{fmtMoedaFull(fatMesAtual)} de {fmtMoedaFull(META_B2C)}</div>
                     </>
                   )}
                 </div>

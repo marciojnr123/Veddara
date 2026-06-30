@@ -14,6 +14,7 @@ export interface DadosComercial {
     clientesAtivos: number
     ticketMedio: number
     winRate: number
+    faturamentoMeta: number   // faturamento do período SEM frete (para a meta)
   }
   mensal: Array<{ anomes: string; faturamento: number; notas: number }>
   diario: Array<{ dia: string; faturamento: number; notas: number }>
@@ -88,9 +89,10 @@ export async function GET(req: NextRequest) {
 
   try {
     const queries = [
-      // 0: faturamento + notas do período
+      // 0: faturamento + notas do período (+ faturamento sem frete, p/ a meta)
       agentQuery(`
-        SELECT SUM(ii.TOTAL_SALE_PRICE) AS fat, COUNT(DISTINCT io.Id) AS notas
+        SELECT SUM(ii.TOTAL_SALE_PRICE) AS fat, COUNT(DISTINCT io.Id) AS notas,
+               SUM(CASE WHEN UPPER(ii.Description) LIKE '%FRETE%' THEN 0 ELSE ii.TOTAL_SALE_PRICE END) AS fat_sem_frete
         FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
         JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
         WHERE io.${ST} ${fEmp} ${ITEMF} ${fInvoice}`, 10),
@@ -258,6 +260,7 @@ export async function GET(req: NextRequest) {
         clientesAtivos: num(qAtivos.rows[0]?.[0]),
         ticketMedio,
         winRate,
+        faturamentoMeta: num(qPeriodo.rows[0]?.[2]),
       },
       anual: qAnual.rows.map(r => ({ ano: str(r[0]), faturamento: num(r[1]), notas: num(r[2]) })),
       mensal: qMensal.rows.map(r => ({ anomes: str(r[0]), faturamento: num(r[1]), notas: num(r[2]) })),
