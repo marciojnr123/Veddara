@@ -74,18 +74,24 @@ export async function GET(req: NextRequest) {
     WHERE io.${ST} ${ITEMF} AND io.SystemCustomerId = '${EMPRESA_ID}'
       AND io.DateInvoiceOrder >= '${mIni}' AND io.DateInvoiceOrder < '${mFimMais1}'`
 
-  // Cadastros duplicados: junta todos os Ids de vendedor com o MESMO nome do id
-  // selecionado (igual ao card da lista, que agrupa por nome). Assim donut,
-  // evolução e melhor mês batem com o faturamento total do vendedor.
-  const ID_SET = `(SELECT sp_d.Id
-    FROM veddara.EZ_VEDDARA_SALE_SALESPERSON sp_d
-    JOIN veddara.EZ_VEDDARA_SALE_SALESPERSON sp_r
-      ON sp_d.Firstname = sp_r.Firstname AND ISNULL(sp_d.LastName, '') = ISNULL(sp_r.LastName, '')
-    WHERE sp_r.Id = '${id}')`
+  // Cadastros duplicados: resolve UMA vez os Ids de vendedor com o MESMO nome do
+  // id selecionado (igual ao card, que agrupa por nome) e reaproveita a lista.
+  // Antes a subconsulta rodava em cada query — pesado; agora é uma lista simples.
+  let idsMesmoNome: string[] = [id]
+  try {
+    const qIds = await agentQuery(`SELECT sp_d.Id
+      FROM veddara.EZ_VEDDARA_SALE_SALESPERSON sp_d
+      JOIN veddara.EZ_VEDDARA_SALE_SALESPERSON sp_r
+        ON sp_d.Firstname = sp_r.Firstname AND ISNULL(sp_d.LastName, '') = ISNULL(sp_r.LastName, '')
+      WHERE sp_r.Id = '${id}'`, 50)
+    const found = qIds.rows.map(r => str(r[0])).filter(x => UUID_RE.test(x))
+    if (found.length) idsMesmoNome = found
+  } catch { /* fallback: usa só o id recebido */ }
+  const SP_IN = `(${idsMesmoNome.map(x => `'${x}'`).join(',')})`
 
   const base = `FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
     JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
-    WHERE io.${ST} ${ITEMF} AND io.SystemCustomerId = '${EMPRESA_ID}' AND io.SalespersonId IN ${ID_SET}`
+    WHERE io.${ST} ${ITEMF} AND io.SystemCustomerId = '${EMPRESA_ID}' AND io.SalespersonId IN ${SP_IN}`
 
   // novos × recompra: com filtro → novo = 1ª compra do cliente (c/ este vendedor) dentro
   // do período; recompra = já comprava antes. Sem filtro → 1 mês = novo, 2+ = recompra.
@@ -95,12 +101,12 @@ export async function GET(req: NextRequest) {
     FROM (
       SELECT DISTINCT io.CustomerId AS cid
       FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
-      WHERE io.${ST} AND io.SystemCustomerId = '${EMPRESA_ID}' AND io.SalespersonId IN ${ID_SET} ${periodo}
+      WHERE io.${ST} AND io.SystemCustomerId = '${EMPRESA_ID}' AND io.SalespersonId IN ${SP_IN} ${periodo}
     ) m
     JOIN (
       SELECT io2.CustomerId AS cid, MIN(YEAR(io2.DateInvoiceOrder)*100 + MONTH(io2.DateInvoiceOrder)) AS fa
       FROM veddara.EZ_VEDDARA_INVOICE_ORDER io2
-      WHERE io2.${ST} AND io2.SystemCustomerId = '${EMPRESA_ID}' AND io2.SalespersonId IN ${ID_SET}
+      WHERE io2.${ST} AND io2.SystemCustomerId = '${EMPRESA_ID}' AND io2.SalespersonId IN ${SP_IN}
       GROUP BY io2.CustomerId
     ) f ON f.cid = m.cid` : `
     SELECT SUM(CASE WHEN meses > 1 THEN 1 ELSE 0 END) AS recompra,
@@ -108,13 +114,13 @@ export async function GET(req: NextRequest) {
     FROM (
       SELECT io.CustomerId, COUNT(DISTINCT YEAR(io.DateInvoiceOrder)*100 + MONTH(io.DateInvoiceOrder)) AS meses
       FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
-      WHERE io.${ST} AND io.SystemCustomerId = '${EMPRESA_ID}' AND io.SalespersonId IN ${ID_SET}
+      WHERE io.${ST} AND io.SystemCustomerId = '${EMPRESA_ID}' AND io.SalespersonId IN ${SP_IN}
       GROUP BY io.CustomerId
     ) t`
 
   // faturamento por dia do mês de referência (vendedor; e categoria)
   const DIA_SEL = 'DAY(io.DateInvoiceOrder) AS dia, SUM(ii.TOTAL_SALE_PRICE) AS fat'
-  const qDiaVendSql = `SELECT ${DIA_SEL} ${baseDia} AND io.SalespersonId IN ${ID_SET}
+  const qDiaVendSql = `SELECT ${DIA_SEL} ${baseDia} AND io.SalespersonId IN ${SP_IN}
                        GROUP BY DAY(io.DateInvoiceOrder) ORDER BY dia`
   const qDiaCatSql = catN > 0
     ? `SELECT ${DIA_SEL} ${baseDia} AND io.SalespersonId IN (${catInList})

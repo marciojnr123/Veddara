@@ -171,16 +171,19 @@ export default function VendedoresPage() {
   const [fim, setFim] = useState('')
   const [sel, setSel] = useState<string | null>(null)
   const [detalhe, setDetalhe] = useState<DetalheVendedor | null>(null)
+  const reqRef = useRef(0)
+  const detReqRef = useRef(0)
 
   const carregar = useCallback((ini: string, f: string) => {
-    setDados(null); setErro('')
+    setErro('')
+    const myReq = ++reqRef.current // ignora respostas fora de ordem
     const p = new URLSearchParams()
     if (ini && f) { p.set('inicio', ini); p.set('fim', f) }
     const qs = p.toString()
     fetch(`/api/vendedores${qs ? '?' + qs : ''}`)
       .then(res => { if (res.status === 401) { router.push('/login'); return null } return res.json() })
-      .then(d => { if (!d) return; if (d.error) { setErro(String(d.error)); return } setDados(d as DadosVendedores) })
-      .catch(e => setErro(String(e)))
+      .then(d => { if (myReq !== reqRef.current || !d) return; if (d.error) { setErro(String(d.error)); return } setDados(d as DadosVendedores) })
+      .catch(e => { if (myReq === reqRef.current) setErro(String(e)) })
   }, [router])
   useEffect(() => { carregar('', '') }, [carregar])
   function aplicarData(ini: string, f: string) { setInicio(ini); setFim(f); carregar(ini, f) }
@@ -196,11 +199,12 @@ export default function VendedoresPage() {
   useEffect(() => {
     if (!vendId) { setDetalhe(null); return }
     setDetalhe(null)
+    const myReq = ++detReqRef.current // ignora respostas fora de ordem
     const p = new URLSearchParams({ id: vendId })
     if (inicio && fim) { p.set('inicio', inicio); p.set('fim', fim) }
     if (catIdsStr) p.set('catIds', catIdsStr)
     fetch(`/api/vendedores/detalhe?${p.toString()}`)
-      .then(r => r.json()).then(d => { if (d && !d.error) setDetalhe(d as DetalheVendedor) }).catch(() => {})
+      .then(r => r.json()).then(d => { if (myReq === detReqRef.current && d && !d.error) setDetalhe(d as DetalheVendedor) }).catch(() => {})
   }, [vendId, inicio, fim, catIdsStr])
   const escopo = vendedor ? [vendedor] : vendedores
   const fatTotal = escopo.reduce((s, v) => s + v.fat, 0)
