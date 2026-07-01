@@ -49,27 +49,35 @@ const CHECK = (
   </svg>
 )
 
-function hojeISO() { return new Date().toISOString().slice(0, 10) }
-function addDiasISO(n: number) { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10) }
+function isoLocal(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
+function hojeISO() { return isoLocal(new Date()) }
 function inicioMesISO() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01` }
+function inicioSemanaISO() { const d = new Date(); d.setHours(0, 0, 0, 0); const dow = d.getDay(); d.setDate(d.getDate() + (dow === 0 ? -6 : 1 - dow)); return isoLocal(d) } // semana começa na segunda
+function inicioAnoISO() { const d = new Date(); return `${d.getFullYear()}-01-01` }
+function mesPassadoISO(): { inicio: string; fim: string } {
+  const d = new Date()
+  const first = new Date(d.getFullYear(), d.getMonth() - 1, 1)
+  const last = new Date(d.getFullYear(), d.getMonth(), 0)
+  return { inicio: isoLocal(first), fim: isoLocal(last) }
+}
 function fmtBR(iso: string) { const [a, m, d] = iso.split('-'); return `${d}/${m}/${a}` }
 
 const PRESETS = [
   { id: 'tudo', label: 'Tudo' },
   { id: 'hoje', label: 'Hoje' },
-  { id: '7d', label: 'Últimos 7 dias' },
-  { id: '30d', label: 'Últimos 30 dias' },
-  { id: '90d', label: 'Últimos 90 dias' },
+  { id: 'semana', label: 'Esta semana' },
   { id: 'mes', label: 'Este mês' },
+  { id: 'mespassado', label: 'Mês passado' },
+  { id: 'ano', label: 'Este ano' },
 ]
 function resolve(id: string): { inicio: string; fim: string } {
   const hoje = hojeISO()
   switch (id) {
     case 'hoje': return { inicio: hoje, fim: hoje }
-    case '7d': return { inicio: addDiasISO(-6), fim: hoje }
-    case '30d': return { inicio: addDiasISO(-29), fim: hoje }
-    case '90d': return { inicio: addDiasISO(-89), fim: hoje }
+    case 'semana': return { inicio: inicioSemanaISO(), fim: hoje }
     case 'mes': return { inicio: inicioMesISO(), fim: hoje }
+    case 'mespassado': return mesPassadoISO()
+    case 'ano': return { inicio: inicioAnoISO(), fim: hoje }
     default: return { inicio: '', fim: '' } // tudo = histórico completo
   }
 }
