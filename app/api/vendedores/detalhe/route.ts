@@ -50,7 +50,6 @@ export async function GET(req: NextRequest) {
 
   // melhor mês = histórico completo; novos×recompra respeita o filtro de data
   const hoje = new Date()
-  const mesIni = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-01`
 
   // ── Mês de referência da evolução diária ──
   // mês do filtro (quando é 1 mês só) ou o mês atual
@@ -136,8 +135,9 @@ export async function GET(req: NextRequest) {
                   ${base}
                   GROUP BY YEAR(io.DateInvoiceOrder)*100 + MONTH(io.DateInvoiceOrder)
                   ORDER BY anomes`, 500),
-      // faturamento do mês atual SEM frete (para a meta B2C — meta é só de produtos)
-      agentQuery(`SELECT SUM(CASE WHEN UPPER(ii.Description) LIKE '%FRETE%' THEN 0 ELSE ii.TOTAL_SALE_PRICE END) AS fat ${base} AND io.DateInvoiceOrder >= '${mesIni}'`, 10),
+      // faturamento do MÊS DE REFERÊNCIA (o do filtro, ou o mês atual) SEM frete
+      // — a meta é só de produtos e acompanha o mês selecionado no filtro
+      agentQuery(`SELECT SUM(CASE WHEN UPPER(ii.Description) LIKE '%FRETE%' THEN 0 ELSE ii.TOTAL_SALE_PRICE END) AS fat ${base} AND io.DateInvoiceOrder >= '${mIni}' AND io.DateInvoiceOrder < '${mFimMais1}'`, 10),
       // clientes do vendedor: novos × recompra (respeita o filtro de data)
       agentQuery(qNRSql, 10),
       // evolução diária do vendedor no mês de referência

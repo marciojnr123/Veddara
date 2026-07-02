@@ -228,6 +228,10 @@ export default function VendedoresPage() {
   )
   const fatMesAtual = detalhe?.fatMesAtual ?? 0
   const pctMeta = (fatMesAtual / META_B2C) * 100
+  // mês de referência da meta (segue o filtro de data)
+  const metaMesLabel = detalhe?.evolucaoMes
+    ? nomeMes(`${detalhe.evolucaoMes.ano}${String(detalhe.evolucaoMes.mes).padStart(2, '0')}`)
+    : ''
 
   // evolução diária acumulada do mês: vendedor vs média da categoria
   const evo = detalhe?.evolucaoMes ?? null
@@ -349,7 +353,7 @@ export default function VendedoresPage() {
               {/* Meta do mês (apenas B2C) — donut */}
               {vendedor.cat === 'b2c' && (
                 <div className="kvnd-card">
-                  <div className="kvnd-card-hdr"><h3 className="kvnd-card-title">Meta do mês — B2C</h3><span className="kvnd-card-note">{fmtMoedaFull(META_B2C)} / mês</span></div>
+                  <div className="kvnd-card-hdr"><h3 className="kvnd-card-title">Meta {metaMesLabel || 'do mês'} — B2C</h3><span className="kvnd-card-note">{fmtMoedaFull(META_B2C)} · sem frete</span></div>
                   {!detalhe ? <div className="kvnd-sk" style={{ height: 140 }} /> : (
                     <>
                       <div className="kvnd-donut">
