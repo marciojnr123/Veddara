@@ -209,11 +209,8 @@ export default function VendedoresPage() {
   const escopo = vendedor ? [vendedor] : vendedores
   const fatTotal = escopo.reduce((s, v) => s + v.fat, 0)
   const notas = escopo.reduce((s, v) => s + v.notas, 0)
-  const ganhos = escopo.reduce((s, v) => s + v.ganhos, 0)
-  const perdidos = escopo.reduce((s, v) => s + v.perdidos, 0)
   const clientes = escopo.reduce((s, v) => s + v.clientes, 0)
   const ticket = notas > 0 ? fatTotal / notas : 0
-  const taxa = (ganhos + perdidos) > 0 ? (ganhos / (ganhos + perdidos)) * 100 : 0
   const maior = [...vendedores].sort((a, b) => b.fat - a.fat)[0]
 
   // individual: comparativo com a média, melhor mês e meta
@@ -301,10 +298,6 @@ export default function VendedoresPage() {
           <div className="kvnd-kpi"><div className="kvnd-kpi-label">Faturas</div>{dados ? <><div className="kvnd-kpi-val">{fmtNum(notas)}</div><div className="kvnd-kpi-sub">Documentos no período</div></> : <div className="kvnd-sk" style={{ height: 40 }} />}</div>
           <div className="kvnd-kpi"><div className="kvnd-kpi-label">Ticket médio</div>{dados ? <><div className="kvnd-kpi-val">{fmtMoeda(ticket)}</div><div className="kvnd-kpi-sub">Por nota fiscal</div></> : <div className="kvnd-sk" style={{ height: 40 }} />}</div>
           <div className="kvnd-kpi"><div className="kvnd-kpi-label">{vendedor ? 'Clientes atendidos' : 'Maior vendedor'}</div>{dados ? <>{vendedor ? <><div className="kvnd-kpi-val">{fmtNum(clientes)}</div><div className="kvnd-kpi-sub">No período</div></> : <><div className="kvnd-kpi-val" style={{ fontSize: 17 }}>{maior?.nome ?? '—'}</div><div className="kvnd-kpi-sub">{maior ? fmtMoeda(maior.fat) : ''}</div></>}</> : <div className="kvnd-sk" style={{ height: 40 }} />}</div>
-          <div className="kvnd-kpi"><div className="kvnd-kpi-label">Taxa de conversão</div>{dados ? <><div className="kvnd-kpi-val">{taxa.toFixed(1)}%</div><div className="kvnd-kpi-sub">Orçamentos ganhos vs perdidos</div></> : <div className="kvnd-sk" style={{ height: 40 }} />}</div>
-          <div className="kvnd-kpi"><div className="kvnd-kpi-label">Orçamentos Faturados</div>{dados ? <><div className="kvnd-kpi-val" style={{ color: 'var(--blue)' }}>{fmtNum(ganhos)}</div><div className="kvnd-kpi-sub">Convertidos em pedido</div></> : <div className="kvnd-sk" style={{ height: 40 }} />}</div>
-          <div className="kvnd-kpi"><div className="kvnd-kpi-label">{vendedor ? 'Clientes' : 'Vendedores ativos'}</div>{dados ? <><div className="kvnd-kpi-val">{vendedor ? fmtNum(clientes) : vendedores.length}</div><div className="kvnd-kpi-sub">{vendedor ? 'Atendidos' : 'Com vendas no período'}</div></> : <div className="kvnd-sk" style={{ height: 40 }} />}</div>
-          <div className="kvnd-kpi orange"><div className="kvnd-kpi-label">Orçamentos Cancelados</div>{dados ? <><div className="kvnd-kpi-val">{fmtNum(perdidos)}</div><div className="kvnd-kpi-sub">Cancelados / expirados</div></> : <div className="kvnd-sk" style={{ height: 40 }} />}</div>
         </div>
 
         {!vendedor ? (

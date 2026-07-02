@@ -44,6 +44,19 @@ const num = (v: unknown): number => {
 }
 const str = (v: unknown): string => String(v ?? '').trim()
 
+// Categorização (igual à aba Vendedores): para os "tops" considerarmos só B2B e B2C,
+// excluímos vendedores "sem representante" e parceiros.
+function norm(s: string): string {
+  return s.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim()
+}
+const SEM = ['CARINA CAVALHEIRO', 'BIANCA MARIA PEREIRA DA COSTA', 'VENDAS DA VEDDARA'].map(norm)
+const PARCEIRO = ['CANNACARE LLC', 'FLEXUS SOLUTION LLC', 'HEILEN', 'CANNECT SERVICOS DE INTERNET S/A', 'MYGRAZZ INTERMEDIACAO DE NEGOCIOS LTDA'].map(norm)
+function ehExcluido(nome: string): boolean {
+  const n = norm(nome)
+  const bate = (x: string) => n === x || n.startsWith(x) || x.startsWith(n)
+  return SEM.some(bate) || PARCEIRO.some(bate)
+}
+
 // Valida formato YYYY-MM-DD (evita injeção de SQL)
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 function validData(s: string | null): string | null {
@@ -88,6 +101,14 @@ export async function GET(req: NextRequest) {
     : `AND io.DateInvoiceOrder >= '2024-07-01'`
 
   try {
+    // IDs de vendedores parceiro/sem-representante → excluídos dos "tops" (só B2B e B2C)
+    let excludeSp = ''
+    try {
+      const qSp = await agentQuery(`SELECT sp.Id, sp.Firstname, sp.LastName FROM veddara.EZ_VEDDARA_SALE_SALESPERSON sp`, 3000)
+      const ids = qSp.rows.filter(r => ehExcluido(`${str(r[1])} ${str(r[2])}`)).map(r => str(r[0])).filter(Boolean)
+      if (ids.length) excludeSp = `AND io.SalespersonId NOT IN (${ids.map(x => `'${x}'`).join(',')})`
+    } catch { /* sem exclusão se falhar */ }
+
     const queries = [
       // 0: faturamento + notas do período (+ faturamento sem frete, p/ a meta)
       agentQuery(`
@@ -113,31 +134,31 @@ export async function GET(req: NextRequest) {
         WHERE io.${ST} ${fEmp} ${ITEMF} ${fMensal}
         GROUP BY YEAR(io.DateInvoiceOrder)*100 + MONTH(io.DateInvoiceOrder)
         ORDER BY anomes`, 200),
-      // 3: top clientes
+      // 3: top clientes (só B2B e B2C)
       agentQuery(`
-        SELECT TOP 10 c.Name AS nome, SUM(ii.TOTAL_SALE_PRICE) AS fat, COUNT(DISTINCT io.Id) AS notas
+        SELECT TOP 5 c.Name AS nome, SUM(ii.TOTAL_SALE_PRICE) AS fat, COUNT(DISTINCT io.Id) AS notas
         FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
         JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
         JOIN veddara.EZ_VEDDARA_CUSTOMER_CUSTOMER c ON io.CustomerId = c.Id
-        WHERE io.${ST} ${fEmp} ${ITEMF} ${fInvoice}
+        WHERE io.${ST} ${fEmp} ${ITEMF} ${fInvoice} ${excludeSp}
         GROUP BY c.Name
         ORDER BY fat DESC`, 50),
-      // 4: top vendedores
+      // 4: top vendedores (só B2B e B2C)
       agentQuery(`
-        SELECT TOP 10 sp.Firstname || ' ' || ISNULL(sp.LastName, '') AS nome,
+        SELECT TOP 5 sp.Firstname || ' ' || ISNULL(sp.LastName, '') AS nome,
                SUM(ii.TOTAL_SALE_PRICE) AS fat, COUNT(DISTINCT io.Id) AS notas
         FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
         JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
         JOIN veddara.EZ_VEDDARA_SALE_SALESPERSON sp ON io.SalespersonId = sp.Id
-        WHERE io.${ST} ${fEmp} ${ITEMF} ${fInvoice}
+        WHERE io.${ST} ${fEmp} ${ITEMF} ${fInvoice} ${excludeSp}
         GROUP BY sp.Firstname, sp.LastName
         ORDER BY fat DESC`, 50),
-      // 5: top produtos
+      // 5: top produtos (sem frete)
       agentQuery(`
-        SELECT TOP 10 ii.Description AS nome, SUM(ii.TOTAL_SALE_PRICE) AS fat
+        SELECT TOP 5 ii.Description AS nome, SUM(ii.TOTAL_SALE_PRICE) AS fat
         FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
         JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
-        WHERE io.${ST} ${fEmp} ${ITEMF} ${fInvoice}
+        WHERE io.${ST} ${fEmp} ${ITEMF} ${fInvoice} AND UPPER(ISNULL(ii.Description, '')) NOT LIKE '%FRETE%'
         GROUP BY ii.Description
         ORDER BY fat DESC`, 50),
       // 6: funil de orçamentos (por data do orçamento)

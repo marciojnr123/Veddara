@@ -115,7 +115,7 @@ const SIDEBAR_CSS = `
   margin: 0; height: 100vh; top: 0;
   background: transparent; border: 0; box-shadow: none; border-radius: 0;
   backdrop-filter: none; -webkit-backdrop-filter: none;
-  overflow: visible; position: relative;
+  overflow: visible; position: relative; z-index: 200;
   display: flex; flex-direction: column; align-items: center;
   padding: 22px 12px;
 }
@@ -170,7 +170,7 @@ const SIDEBAR_CSS = `
   position: absolute; left: calc(100% + 16px); top: 50%; transform: translateY(-50%);
   background: #0b1220; color: #fff; font-size: 12px; font-weight: 600;
   padding: 5px 10px; border-radius: 8px; white-space: nowrap;
-  opacity: 0; pointer-events: none; transition: opacity .12s; z-index: 60;
+  opacity: 0; pointer-events: none; transition: opacity .12s; z-index: 300;
 }
 .app-rail-btn::before {
   content: ''; position: absolute; left: calc(100% + 10px); top: 50%;

@@ -545,7 +545,7 @@ export default function ComercialPage() {
         <div className="kcom-row-eq">
           <div className="kcom-card">
             <div className="kcom-card-hdr">
-              <h3 className="kcom-card-title">Top 10 clientes</h3>
+              <h3 className="kcom-card-title">Top 5 clientes</h3>
               <span className="kcom-card-note">Por faturamento</span>
             </div>
             {!dados ? <div className="kcom-sk" style={{ height: 360 }} />
@@ -571,7 +571,7 @@ export default function ComercialPage() {
 
           <div className="kcom-card">
             <div className="kcom-card-hdr">
-              <h3 className="kcom-card-title">Top 10 vendedores</h3>
+              <h3 className="kcom-card-title">Top 5 vendedores</h3>
               <span className="kcom-card-note">Por faturamento</span>
             </div>
             {!dados ? <div className="kcom-sk" style={{ height: 360 }} />
@@ -664,7 +664,7 @@ export default function ComercialPage() {
         {/* Top produtos/serviços */}
         <div className="kcom-card">
           <div className="kcom-card-hdr">
-            <h3 className="kcom-card-title">Top 10 produtos & serviços</h3>
+            <h3 className="kcom-card-title">Top 5 produtos & serviços</h3>
             <span className="kcom-card-note">Por faturamento no período</span>
           </div>
           {!dados ? <div className="kcom-sk" style={{ height: 320 }} />
