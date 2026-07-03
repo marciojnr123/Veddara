@@ -57,6 +57,7 @@ const CSS = `
 .kest-table td.sku { text-align: left; color: var(--ink-3); }
 .kest-table td.atual { font-weight: 800; color: #1e293b; }
 .kest-table td.atual.low { color: var(--warn); }
+.kest-table td.atual.neg { color: var(--danger); }
 .kest-table tbody tr:hover td { background: #f8fbff; }
 .kest-badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 800; background: #fff7ed; color: var(--warn); }
 .kest-empty { padding: 40px; text-align: center; color: var(--ink-3); font-size: 13.5px; }
@@ -83,23 +84,25 @@ export default function EstoquePage() {
   }, [router])
   useEffect(() => { carregar() }, [carregar])
 
-  const baixo = (i: EstoqueItem) => i.minimo > 0 && i.atual <= i.minimo
+  // Estoque lógico = Mile físico − vendas sem integração + compras
+  // (falta ainda "Mile sem integração" e "qtde enviada" — dependem da tabela de tracking)
+  const estoqueLogico = (i: EstoqueItem) => i.atual - i.vendasSemInt + i.compras
 
   const linhas = useMemo(() => {
     if (!itens) return []
     return itens
       .filter(i => {
-        if (busca && !(`${i.produto} ${i.sku}`.toLowerCase().includes(busca.toLowerCase()))) return false
-        if (soBaixo && !baixo(i)) return false
+        if (busca && !(`${i.productId} ${i.produto} ${i.sku}`.toLowerCase().includes(busca.toLowerCase()))) return false
+        if (soBaixo && estoqueLogico(i) >= 0) return false
         return true
       })
-      .sort((a, b) => a.atual - b.atual)
+      .sort((a, b) => estoqueLogico(a) - estoqueLogico(b))
   }, [itens, busca, soBaixo])
 
   const totalSkus = itens?.length ?? 0
-  const totalUn = (itens ?? []).reduce((s, i) => s + Math.max(i.atual, 0), 0)
-  const totalReservado = (itens ?? []).reduce((s, i) => s + i.reservado, 0)
-  const abaixoMin = (itens ?? []).filter(baixo).length
+  const totalUn = (itens ?? []).reduce((s, i) => s + Math.max(estoqueLogico(i), 0), 0)
+  const negativos = (itens ?? []).filter(i => estoqueLogico(i) < 0).length
+  const vendasTotal = (itens ?? []).reduce((s, i) => s + i.vendasSemInt, 0)
 
   return (
     <div className="kest-root">
@@ -117,7 +120,7 @@ export default function EstoquePage() {
           </div>
         </div>
 
-        <div className="kest-prev">Lista oficial (planilha master) · Mile + vendas sem integração + compras ao vivo · falta estoque inicial e acertos</div>
+        <div className="kest-prev">Estoque lógico ao vivo (Mile − vendas s/ integr. + compras) · falta Mile s/ integr. e qtde enviada p/ o OK/NOK exato</div>
 
         {erro && <div className="kest-tablewrap" style={{ padding: 16, color: '#dc2626', fontSize: 13 }}>Erro ao carregar estoque: {erro}</div>}
         {vendasErro && <div className="kest-tablewrap" style={{ padding: 12, color: '#b45309', fontSize: 12.5 }}>⚠️ Vendas sem integração falhou: {vendasErro}</div>}
@@ -127,17 +130,17 @@ export default function EstoquePage() {
         {/* KPIs */}
         <div className="kest-kpis">
           <div className="kest-kpi"><div className="kest-kpi-lbl">Produtos (master)</div><div className="kest-kpi-val">{fmtNum(totalSkus)}</div></div>
-          <div className="kest-kpi"><div className="kest-kpi-lbl">Estoque total (un.)</div><div className="kest-kpi-val">{fmtNum(totalUn)}</div></div>
-          <div className="kest-kpi"><div className="kest-kpi-lbl">Reservado (un.)</div><div className="kest-kpi-val">{fmtNum(totalReservado)}</div></div>
-          <div className="kest-kpi warn"><div className="kest-kpi-lbl">Abaixo do mínimo</div><div className="kest-kpi-val">{abaixoMin} <span style={{ fontSize: 12, fontWeight: 600 }}>SKUs</span></div></div>
+          <div className="kest-kpi"><div className="kest-kpi-lbl">Estoque lógico (un.)</div><div className="kest-kpi-val">{fmtNum(totalUn)}</div></div>
+          <div className="kest-kpi warn"><div className="kest-kpi-lbl">Estoque negativo</div><div className="kest-kpi-val">{negativos} <span style={{ fontSize: 12, fontWeight: 600 }}>SKUs</span></div></div>
+          <div className="kest-kpi"><div className="kest-kpi-lbl">Vendas s/ integr. (un.)</div><div className="kest-kpi-val">{fmtNum(vendasTotal)}</div></div>
         </div>
 
         {/* Filtros */}
         <div className="kest-filters">
-          <input className="kest-search" placeholder="🔍 Buscar produto ou SKU…" value={busca} onChange={e => setBusca(e.target.value)} />
+          <input className="kest-search" placeholder="🔍 Buscar produto, SKU ou código…" value={busca} onChange={e => setBusca(e.target.value)} />
           <label className="kest-toggle">
             <input type="checkbox" checked={soBaixo} onChange={e => setSoBaixo(e.target.checked)} />
-            <span className="tk" /> Só abaixo do mínimo
+            <span className="tk" /> Só estoque negativo
           </label>
         </div>
 
@@ -150,37 +153,36 @@ export default function EstoquePage() {
                   <th className="l">Cód.</th>
                   <th className="l">Produto</th>
                   <th className="l">SKU</th>
-                  <th>Est. atual</th>
-                  <th>Reservado</th>
-                  <th>Disponível</th>
-                  <th>Mínimo</th>
+                  <th>Est. inicial</th>
+                  <th>Est. Mile</th>
                   <th>Vendas s/ integr.</th>
                   <th>Compras</th>
-                  <th style={{ textAlign: 'center' }}>Alerta</th>
+                  <th>Estoque</th>
                 </tr>
               </thead>
               <tbody>
-                {linhas.map((i, ix) => (
-                  <tr key={ix}>
-                    <td className="sku" style={{ fontWeight: 700, color: '#334155' }}>{i.productId}</td>
-                    <td className="prod">{i.produto || '—'}</td>
-                    <td className="sku">{i.sku || '—'}</td>
-                    <td className={`atual ${baixo(i) ? 'low' : ''}`}>{fmtNum(i.atual)}</td>
-                    <td>{i.reservado ? fmtNum(i.reservado) : '—'}</td>
-                    <td>{fmtNum(i.disponivel)}</td>
-                    <td>{i.minimo || '—'}</td>
-                    <td style={{ color: i.vendasSemInt > 0 ? '#ea580c' : '#94a3b8', fontWeight: i.vendasSemInt > 0 ? 700 : 400 }}>{i.vendasSemInt ? fmtNum(i.vendasSemInt) : '—'}</td>
-                    <td style={{ color: i.compras > 0 ? '#16a34a' : '#94a3b8', fontWeight: i.compras > 0 ? 700 : 400 }}>{i.compras ? fmtNum(i.compras) : '—'}</td>
-                    <td style={{ textAlign: 'center' }}>{baixo(i) ? <span className="kest-badge">baixo</span> : ''}</td>
-                  </tr>
-                ))}
-                {linhas.length === 0 && <tr><td colSpan={10}><div className="kest-empty">Nenhum item com esses filtros.</div></td></tr>}
+                {linhas.map((i, ix) => {
+                  const est = estoqueLogico(i)
+                  return (
+                    <tr key={ix}>
+                      <td className="sku" style={{ fontWeight: 700, color: '#334155' }}>{i.productId}</td>
+                      <td className="prod">{i.produto || '—'}</td>
+                      <td className="sku">{i.sku || '—'}</td>
+                      <td>{i.inicial || '—'}</td>
+                      <td className="atual">{fmtNum(i.atual)}</td>
+                      <td style={{ color: i.vendasSemInt > 0 ? '#ea580c' : '#94a3b8', fontWeight: i.vendasSemInt > 0 ? 700 : 400 }}>{i.vendasSemInt ? fmtNum(i.vendasSemInt) : '—'}</td>
+                      <td style={{ color: i.compras > 0 ? '#16a34a' : '#94a3b8', fontWeight: i.compras > 0 ? 700 : 400 }}>{i.compras ? fmtNum(i.compras) : '—'}</td>
+                      <td className={`atual ${est < 0 ? 'neg' : ''}`}>{fmtNum(est)}</td>
+                    </tr>
+                  )
+                })}
+                {linhas.length === 0 && <tr><td colSpan={8}><div className="kest-empty">Nenhum item com esses filtros.</div></td></tr>}
               </tbody>
             </table>
           </div>
         )}
 
-        <div className="kest-legend" style={{ fontSize: 11.5, color: '#94a3b8' }}>Dados ao vivo da tabela <b>TB_MILE_EXPRESS_ESTOQUE</b> (Mile). Próxima fase: cruzar vendas, estoque inicial, compras e integração para o estoque lógico + OK/NOK.</div>
+        <div className="kest-legend" style={{ fontSize: 11.5, color: '#94a3b8' }}><b>Estoque</b> = Est. Mile − Vendas s/ integração + Compras · <b style={{ color: '#e11d48' }}>vermelho</b> = negativo. Fontes ao vivo: Mile (estoque + transmitidos), vendas (Sybase), planilhas (master, compras, acertos).</div>
       </main>
     </div>
   )

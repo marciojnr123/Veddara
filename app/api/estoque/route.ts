@@ -24,6 +24,7 @@ const BASE_VENDAS = '2025-08-01'
 // Planilhas
 const SHEET_MASTER_ID = '18izoV6xD2sbzLq3zBKqGpX2L6pzhI3S4eYtRApMVuqQ' // aba 1: Product Id | Descrição | Marca | ... | Lote | Estoque Inicial
 const SHEET_COMPRAS_ID = '1SalDB0AuYAVIWGV8OYMJQ5EZQ8ZKXJNLAeGHDcRDnds' // aba "Compras": Product Id | ... | Qtde | ...
+const SHEET_ACERTOS_ID = '1K53zArbOU4mr8YRQgXTfVA05w5NHaLTxEBEBWFV0SKQ' // aba 1: Invoice | Motivo (pedidos a desconsiderar)
 
 const SQL_MILE = `
   SELECT e.SKU_PRODUTO, e.DS_PRODUTO, e.QT_ESTOQUE_ATUAL, e.QT_ESTOQUE_RESERVADO, e.QT_ESTOQUE_REAL, e.QT_ESTOQUE_MINIMO
@@ -31,22 +32,40 @@ const SQL_MILE = `
   JOIN (SELECT SKU_PRODUTO, MAX(DT_ESTOQUE) AS mx FROM veddara.TB_MILE_EXPRESS_ESTOQUE GROUP BY SKU_PRODUTO) m
     ON m.SKU_PRODUTO = e.SKU_PRODUTO AND m.mx = e.DT_ESTOQUE`
 
-// Vendas SEM integração, por Product Id (pp.ProductId), a partir da data base.
-const SQL_VENDAS_SEM_INT = `
-  SELECT pp.ProductId AS pid, SUM(ii.Quantity) AS qtd
-  FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
-  JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON ii.OrderId = io.Id
-  JOIN veddara.EZ_VEDDARA_PRODUCT_PRODUCT pp ON pp.Id = ii.ProductId
-  JOIN veddara.EZ_VEDDARA_SALE_SALESPERSON sp ON sp.Id = io.SalespersonId
-  WHERE io.SystemCustomerId = '${EMPRESA_ID}'
-    AND io.Status IN (1, 100)
-    AND io.DateInvoiceOrder >= '${BASE_VENDAS}'
-    AND sp.Firstname NOT IN ('CANNACARE', 'CANNECT ', 'FLEXUS SOLUTION LLC')
-    AND CAST(io.OrderId AS VARCHAR(20)) NOT IN (
-      SELECT RTRIM(CAST(cp.CD_PEDIDO AS VARCHAR(20))) FROM veddara.TB_MILE_EXPRESS_CONTROLE_PEDIDO cp
-      WHERE cp.CD_STATUS = 'TRANSMITIDO' AND cp.CD_PEDIDO IS NOT NULL
-    )
-  GROUP BY pp.ProductId`
+// Vendas SEM integração, por Product Id. Exclui: transmitidos (Mile), parceiros e
+// os acertos (invoices que a equipe marca p/ desconsiderar — vendas internas/consignadas).
+function sqlVendasSemInt(acertosIds: string[]): string {
+  const acertosClause = acertosIds.length
+    ? `AND CAST(io.OrderId AS VARCHAR(20)) NOT IN (${acertosIds.map(x => `'${x}'`).join(',')})`
+    : ''
+  return `
+    SELECT pp.ProductId AS pid, SUM(ii.Quantity) AS qtd
+    FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
+    JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON ii.OrderId = io.Id
+    JOIN veddara.EZ_VEDDARA_PRODUCT_PRODUCT pp ON pp.Id = ii.ProductId
+    JOIN veddara.EZ_VEDDARA_SALE_SALESPERSON sp ON sp.Id = io.SalespersonId
+    WHERE io.SystemCustomerId = '${EMPRESA_ID}'
+      AND io.Status IN (1, 100)
+      AND io.DateInvoiceOrder >= '${BASE_VENDAS}'
+      AND sp.Firstname NOT IN ('CANNACARE', 'CANNECT ', 'FLEXUS SOLUTION LLC')
+      AND CAST(io.OrderId AS VARCHAR(20)) NOT IN (
+        SELECT RTRIM(CAST(cp.CD_PEDIDO AS VARCHAR(20))) FROM veddara.TB_MILE_EXPRESS_CONTROLE_PEDIDO cp
+        WHERE cp.CD_STATUS = 'TRANSMITIDO' AND cp.CD_PEDIDO IS NOT NULL
+      )
+      ${acertosClause}
+    GROUP BY pp.ProductId`
+}
+
+// Invoices a desconsiderar (planilha Acertos), só números
+async function acertosInvoices(): Promise<string[]> {
+  const rows = await fetchSheet(SHEET_ACERTOS_ID)
+  const ids: string[] = []
+  for (let r = 1; r < rows.length; r++) {
+    const inv = (rows[r][0] || '').trim()
+    if (/^\d+$/.test(inv)) ids.push(inv)
+  }
+  return ids
+}
 
 // Compras da planilha, somadas por Product Id
 async function comprasPorProductId(): Promise<Map<string, number>> {
@@ -83,10 +102,15 @@ export async function GET() {
   const session = getSession()
   if (!session) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
   try {
+    // acertos primeiro (a query de vendas precisa deles); se falhar, segue sem excluir
+    let acertos: string[] = []
+    let acertosErro: string | null = null
+    try { acertos = await acertosInvoices() } catch (e) { acertosErro = e instanceof Error ? e.message : String(e) }
+
     const [rMaster, rMile, rVendas, rCompras] = await Promise.allSettled([
       produtosMaster(),
       agentQuery(SQL_MILE, 8000),
-      agentQuery(SQL_VENDAS_SEM_INT, 5000),
+      agentQuery(sqlVendasSemInt(acertos), 5000),
       comprasPorProductId(),
     ])
 
@@ -129,7 +153,7 @@ export async function GET() {
       }
     })
 
-    return NextResponse.json({ itens, mileErro, vendasErro, comprasErro }, { headers: { 'Cache-Control': 'no-store' } })
+    return NextResponse.json({ itens, mileErro, vendasErro, comprasErro, acertosErro, acertosCount: acertos.length }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 })
   }
