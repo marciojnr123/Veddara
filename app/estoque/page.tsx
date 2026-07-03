@@ -70,6 +70,7 @@ export default function EstoquePage() {
   const [erro, setErro] = useState('')
   const [vendasErro, setVendasErro] = useState<string | null>(null)
   const [comprasErro, setComprasErro] = useState<string | null>(null)
+  const [mileErro, setMileErro] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
   const [soBaixo, setSoBaixo] = useState(false)
 
@@ -77,7 +78,7 @@ export default function EstoquePage() {
     setErro('')
     fetch('/api/estoque')
       .then(res => { if (res.status === 401) { router.push('/login'); return null } return res.json() })
-      .then(d => { if (!d) return; if (d.error) { setErro(String(d.error)); setItens([]); return } setItens(d.itens as EstoqueItem[]); setVendasErro(d.vendasErro ?? null); setComprasErro(d.comprasErro ?? null) })
+      .then(d => { if (!d) return; if (d.error) { setErro(String(d.error)); setItens([]); return } setItens(d.itens as EstoqueItem[]); setVendasErro(d.vendasErro ?? null); setComprasErro(d.comprasErro ?? null); setMileErro(d.mileErro ?? null) })
       .catch(e => { setErro(String(e)); setItens([]) })
   }, [router])
   useEffect(() => { carregar() }, [carregar])
@@ -116,15 +117,16 @@ export default function EstoquePage() {
           </div>
         </div>
 
-        <div className="kest-prev">Fase 3 · Mile + vendas sem integração + compras (planilha) ao vivo · falta estoque inicial e acertos</div>
+        <div className="kest-prev">Lista oficial (planilha master) · Mile + vendas sem integração + compras ao vivo · falta estoque inicial e acertos</div>
 
         {erro && <div className="kest-tablewrap" style={{ padding: 16, color: '#dc2626', fontSize: 13 }}>Erro ao carregar estoque: {erro}</div>}
         {vendasErro && <div className="kest-tablewrap" style={{ padding: 12, color: '#b45309', fontSize: 12.5 }}>⚠️ Vendas sem integração falhou: {vendasErro}</div>}
         {comprasErro && <div className="kest-tablewrap" style={{ padding: 12, color: '#b45309', fontSize: 12.5 }}>⚠️ Compras (planilha) falhou: {comprasErro}</div>}
+        {mileErro && <div className="kest-tablewrap" style={{ padding: 12, color: '#b45309', fontSize: 12.5 }}>⚠️ Estoque Mile falhou: {mileErro}</div>}
 
         {/* KPIs */}
         <div className="kest-kpis">
-          <div className="kest-kpi"><div className="kest-kpi-lbl">SKUs na Mile</div><div className="kest-kpi-val">{fmtNum(totalSkus)}</div></div>
+          <div className="kest-kpi"><div className="kest-kpi-lbl">Produtos (master)</div><div className="kest-kpi-val">{fmtNum(totalSkus)}</div></div>
           <div className="kest-kpi"><div className="kest-kpi-lbl">Estoque total (un.)</div><div className="kest-kpi-val">{fmtNum(totalUn)}</div></div>
           <div className="kest-kpi"><div className="kest-kpi-lbl">Reservado (un.)</div><div className="kest-kpi-val">{fmtNum(totalReservado)}</div></div>
           <div className="kest-kpi warn"><div className="kest-kpi-lbl">Abaixo do mínimo</div><div className="kest-kpi-val">{abaixoMin} <span style={{ fontSize: 12, fontWeight: 600 }}>SKUs</span></div></div>
@@ -145,6 +147,7 @@ export default function EstoquePage() {
             <table className="kest-table">
               <thead>
                 <tr>
+                  <th className="l">Cód.</th>
                   <th className="l">Produto</th>
                   <th className="l">SKU</th>
                   <th>Est. atual</th>
@@ -159,6 +162,7 @@ export default function EstoquePage() {
               <tbody>
                 {linhas.map((i, ix) => (
                   <tr key={ix}>
+                    <td className="sku" style={{ fontWeight: 700, color: '#334155' }}>{i.productId}</td>
                     <td className="prod">{i.produto || '—'}</td>
                     <td className="sku">{i.sku || '—'}</td>
                     <td className={`atual ${baixo(i) ? 'low' : ''}`}>{fmtNum(i.atual)}</td>
@@ -170,7 +174,7 @@ export default function EstoquePage() {
                     <td style={{ textAlign: 'center' }}>{baixo(i) ? <span className="kest-badge">baixo</span> : ''}</td>
                   </tr>
                 ))}
-                {linhas.length === 0 && <tr><td colSpan={9}><div className="kest-empty">Nenhum item com esses filtros.</div></td></tr>}
+                {linhas.length === 0 && <tr><td colSpan={10}><div className="kest-empty">Nenhum item com esses filtros.</div></td></tr>}
               </tbody>
             </table>
           </div>

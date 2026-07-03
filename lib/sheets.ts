@@ -26,8 +26,11 @@ export function parseCsv(text: string): string[][] {
   return rows
 }
 
-export async function fetchSheet(spreadsheetId: string, sheetName: string): Promise<string[][]> {
-  const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`
+// sheetName vazio/omitido → primeira aba (export CSV padrão)
+export async function fetchSheet(spreadsheetId: string, sheetName?: string): Promise<string[][]> {
+  const url = sheetName
+    ? `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`
+    : `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv`
   const res = await fetch(url, { cache: 'no-store' })
   if (!res.ok) throw new Error(`Falha ao ler planilha (${res.status})`)
   const text = await res.text()
