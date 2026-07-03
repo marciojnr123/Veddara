@@ -96,7 +96,7 @@ export default function EstoquePage() {
         if (soBaixo && estoqueLogico(i) >= 0) return false
         return true
       })
-      .sort((a, b) => estoqueLogico(a) - estoqueLogico(b))
+      .sort((a, b) => (Number(a.productId) || 0) - (Number(b.productId) || 0))
   }, [itens, busca, soBaixo])
 
   const totalSkus = itens?.length ?? 0
