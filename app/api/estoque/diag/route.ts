@@ -18,10 +18,13 @@ export async function GET(req: NextRequest) {
   if (auth instanceof NextResponse) return auth
 
   const probes = await Promise.all([
-    probe('Mile estoque', `SELECT TOP 3 * FROM veddara.TB_MILE_EXPRESS_ESTOQUE`),
-    probe('Produtos (FactoryCode)', `SELECT TOP 3 pp.Id, pp.ProductId, pp.FactoryCode, pp.Description FROM veddara.EZ_VEDDARA_PRODUCT_PRODUCT pp`),
+    // colunas do item da nota — procurar um código/SKU pra cruzar com a Mile
+    probe('Invoice item (colunas)', `SELECT TOP 1 * FROM veddara.EZ_VEDDARA_INVOICE_ITEM`),
+    // nomes alternativos da tabela de produto
+    probe('Produto (nome alt: EZ_VEDDARA_PRODUCT)', `SELECT TOP 1 * FROM veddara.EZ_VEDDARA_PRODUCT`),
+    probe('Produto (nome alt: EZ_VEDDARA_PRODUCT_ITEM)', `SELECT TOP 1 * FROM veddara.EZ_VEDDARA_PRODUCT_ITEM`),
+    // continua confirmando os transmitidos (caso você carregue depois)
     probe('Mile controle pedido (transmitidos)', `SELECT TOP 3 * FROM veddara.TB_MILE_EXPRESS_CONTROLE_PEDIDO`),
-    probe('Mile tracking', `SELECT TOP 3 * FROM veddara.TB_MILE_EXPRESS_TRACKING`),
   ])
 
   return NextResponse.json({ probes }, { headers: { 'Cache-Control': 'no-store' } })
