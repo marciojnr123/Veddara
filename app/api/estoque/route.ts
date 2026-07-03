@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { agentQuery } from '@/lib/agent'
+import { fetchSheet, numBR } from '@/lib/sheets'
 
 export interface EstoqueItem {
   sku: string
@@ -10,16 +11,17 @@ export interface EstoqueItem {
   disponivel: number
   minimo: number
   vendasSemInt: number
+  compras: number
 }
 
 const num = (v: unknown): number => { const n = Number(v); return Number.isFinite(n) ? n : 0 }
 const str = (v: unknown): string => String(v ?? '').trim()
 
 const EMPRESA_ID = '929577C5-3B2C-459C-973E-C46211B8B251'
-// data base das "vendas sem integração" (igual ao relatório)
 const BASE_VENDAS = '2025-08-01'
+// Planilha de Compras (aba "Compras": Product Id | Descrição | Custo | Qtde | Total | Data | SKU)
+const SHEET_COMPRAS_ID = '1SalDB0AuYAVIWGV8OYMJQ5EZQ8ZKXJNLAeGHDcRDnds'
 
-// Estoque físico Mile — só o snapshot mais recente de cada SKU
 const SQL_MILE = `
   SELECT e.SKU_PRODUTO, e.DS_PRODUTO, e.QT_ESTOQUE_ATUAL, e.QT_ESTOQUE_RESERVADO, e.QT_ESTOQUE_REAL, e.QT_ESTOQUE_MINIMO
   FROM veddara.TB_MILE_EXPRESS_ESTOQUE e
@@ -27,12 +29,6 @@ const SQL_MILE = `
     ON m.SKU_PRODUTO = e.SKU_PRODUTO AND m.mx = e.DT_ESTOQUE
   ORDER BY e.DS_PRODUTO`
 
-// Vendas SEM integração, por SKU (FactoryCode):
-//  - nota faturada (Status 1/100), empresa Veddara, a partir da data base
-//  - pedido NÃO transmitido para a Mile
-//  - exclui parceiros (Cannacare/Cannect/Flexus)
-//  - frete cai fora sozinho (ProductId null não casa no join de produto)
-//  Falta ainda: excluir "Acertos" e "Erros Integração" (virão das planilhas).
 const SQL_VENDAS_SEM_INT = `
   SELECT pp.FactoryCode AS sku, SUM(ii.Quantity) AS qtd
   FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
@@ -45,19 +41,44 @@ const SQL_VENDAS_SEM_INT = `
     AND sp.Firstname NOT IN ('CANNACARE', 'CANNECT ', 'FLEXUS SOLUTION LLC')
     AND pp.FactoryCode IS NOT NULL
     AND CAST(io.OrderId AS VARCHAR(20)) NOT IN (
-      SELECT cp.CD_PEDIDO FROM veddara.TB_MILE_EXPRESS_CONTROLE_PEDIDO cp
+      SELECT RTRIM(CAST(cp.CD_PEDIDO AS VARCHAR(20))) FROM veddara.TB_MILE_EXPRESS_CONTROLE_PEDIDO cp
       WHERE cp.CD_STATUS = 'TRANSMITIDO' AND cp.CD_PEDIDO IS NOT NULL
     )
   GROUP BY pp.FactoryCode`
+
+// Compras da planilha (por Product Id) mapeadas pra SKU (FactoryCode) via PRODUCT_PRODUCT
+async function comprasPorSku(): Promise<Map<string, number>> {
+  const rows = await fetchSheet(SHEET_COMPRAS_ID, 'Compras')
+  const porPid = new Map<string, number>()
+  for (let r = 1; r < rows.length; r++) {
+    const pid = (rows[r][0] || '').trim()
+    if (!pid) continue
+    porPid.set(pid, (porPid.get(pid) ?? 0) + numBR(rows[r][3] || ''))
+  }
+  if (porPid.size === 0) return new Map()
+
+  const rp = await agentQuery(
+    `SELECT pp.ProductId, pp.FactoryCode FROM veddara.EZ_VEDDARA_PRODUCT_PRODUCT pp
+     WHERE pp.SystemCustomerId = '${EMPRESA_ID}' AND pp.FactoryCode IS NOT NULL`, 20000)
+  const pid2sku = new Map<string, string>()
+  for (const row of rp.rows) pid2sku.set(str(row[0]), str(row[1]))
+
+  const porSku = new Map<string, number>()
+  for (const [pid, q] of porPid) {
+    const sku = pid2sku.get(pid)
+    if (sku) porSku.set(sku, (porSku.get(sku) ?? 0) + q)
+  }
+  return porSku
+}
 
 export async function GET() {
   const session = getSession()
   if (!session) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
   try {
-    // Mile é obrigatório; vendas é "melhor esforço" (se falhar, mostramos só o estoque)
-    const [rMile, rVendas] = await Promise.allSettled([
+    const [rMile, rVendas, rCompras] = await Promise.allSettled([
       agentQuery(SQL_MILE, 5000),
       agentQuery(SQL_VENDAS_SEM_INT, 5000),
+      comprasPorSku(),
     ])
 
     if (rMile.status !== 'fulfilled') {
@@ -65,7 +86,6 @@ export async function GET() {
       return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 })
     }
 
-    // vendas sem integração por SKU
     const vendasMap = new Map<string, number>()
     let vendasErro: string | null = null
     if (rVendas.status === 'fulfilled') {
@@ -73,6 +93,11 @@ export async function GET() {
     } else {
       vendasErro = rVendas.reason instanceof Error ? rVendas.reason.message : String(rVendas.reason)
     }
+
+    const comprasMap: Map<string, number> = rCompras.status === 'fulfilled' ? rCompras.value : new Map()
+    const comprasErro: string | null = rCompras.status === 'fulfilled'
+      ? null
+      : (rCompras.reason instanceof Error ? rCompras.reason.message : String(rCompras.reason))
 
     const vistos = new Set<string>()
     const itens: EstoqueItem[] = []
@@ -89,10 +114,11 @@ export async function GET() {
         disponivel: num(r[4]),
         minimo: num(r[5]),
         vendasSemInt: vendasMap.get(sku) ?? 0,
+        compras: comprasMap.get(sku) ?? 0,
       })
     }
 
-    return NextResponse.json({ itens, vendasErro }, { headers: { 'Cache-Control': 'no-store' } })
+    return NextResponse.json({ itens, vendasErro, comprasErro }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 })
   }

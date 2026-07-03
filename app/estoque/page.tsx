@@ -69,6 +69,7 @@ export default function EstoquePage() {
   const [itens, setItens] = useState<EstoqueItem[] | null>(null)
   const [erro, setErro] = useState('')
   const [vendasErro, setVendasErro] = useState<string | null>(null)
+  const [comprasErro, setComprasErro] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
   const [soBaixo, setSoBaixo] = useState(false)
 
@@ -76,7 +77,7 @@ export default function EstoquePage() {
     setErro('')
     fetch('/api/estoque')
       .then(res => { if (res.status === 401) { router.push('/login'); return null } return res.json() })
-      .then(d => { if (!d) return; if (d.error) { setErro(String(d.error)); setItens([]); return } setItens(d.itens as EstoqueItem[]); setVendasErro(d.vendasErro ?? null) })
+      .then(d => { if (!d) return; if (d.error) { setErro(String(d.error)); setItens([]); return } setItens(d.itens as EstoqueItem[]); setVendasErro(d.vendasErro ?? null); setComprasErro(d.comprasErro ?? null) })
       .catch(e => { setErro(String(e)); setItens([]) })
   }, [router])
   useEffect(() => { carregar() }, [carregar])
@@ -115,10 +116,11 @@ export default function EstoquePage() {
           </div>
         </div>
 
-        <div className="kest-prev">Fase 2 · estoque Mile + vendas sem integração ao vivo · ainda falta inicial/compras (planilhas)</div>
+        <div className="kest-prev">Fase 3 · Mile + vendas sem integração + compras (planilha) ao vivo · falta estoque inicial e acertos</div>
 
         {erro && <div className="kest-tablewrap" style={{ padding: 16, color: '#dc2626', fontSize: 13 }}>Erro ao carregar estoque: {erro}</div>}
-        {vendasErro && <div className="kest-tablewrap" style={{ padding: 12, color: '#b45309', fontSize: 12.5 }}>⚠️ Estoque da Mile ok, mas a query de vendas sem integração falhou: {vendasErro}</div>}
+        {vendasErro && <div className="kest-tablewrap" style={{ padding: 12, color: '#b45309', fontSize: 12.5 }}>⚠️ Vendas sem integração falhou: {vendasErro}</div>}
+        {comprasErro && <div className="kest-tablewrap" style={{ padding: 12, color: '#b45309', fontSize: 12.5 }}>⚠️ Compras (planilha) falhou: {comprasErro}</div>}
 
         {/* KPIs */}
         <div className="kest-kpis">
@@ -150,6 +152,7 @@ export default function EstoquePage() {
                   <th>Disponível</th>
                   <th>Mínimo</th>
                   <th>Vendas s/ integr.</th>
+                  <th>Compras</th>
                   <th style={{ textAlign: 'center' }}>Alerta</th>
                 </tr>
               </thead>
@@ -163,10 +166,11 @@ export default function EstoquePage() {
                     <td>{fmtNum(i.disponivel)}</td>
                     <td>{i.minimo || '—'}</td>
                     <td style={{ color: i.vendasSemInt > 0 ? '#ea580c' : '#94a3b8', fontWeight: i.vendasSemInt > 0 ? 700 : 400 }}>{i.vendasSemInt ? fmtNum(i.vendasSemInt) : '—'}</td>
+                    <td style={{ color: i.compras > 0 ? '#16a34a' : '#94a3b8', fontWeight: i.compras > 0 ? 700 : 400 }}>{i.compras ? fmtNum(i.compras) : '—'}</td>
                     <td style={{ textAlign: 'center' }}>{baixo(i) ? <span className="kest-badge">baixo</span> : ''}</td>
                   </tr>
                 ))}
-                {linhas.length === 0 && <tr><td colSpan={8}><div className="kest-empty">Nenhum item com esses filtros.</div></td></tr>}
+                {linhas.length === 0 && <tr><td colSpan={9}><div className="kest-empty">Nenhum item com esses filtros.</div></td></tr>}
               </tbody>
             </table>
           </div>
