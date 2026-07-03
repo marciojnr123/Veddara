@@ -2,22 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { agentQuery } from '@/lib/agent'
 import { requireAuth } from '@/lib/api-auth'
 
-// Diagnóstico (admin) — descobre em qual schema cada tabela está e mostra as colunas.
-// Abrir em /api/estoque/diag logado como admin. NÃO é usado pelo dashboard.
+// Diagnóstico (admin) do produto 87 — por que o Est. Mile deu 0 no dashboard e 6 no relatório?
+const EMPRESA_ID = '929577C5-3B2C-459C-973E-C46211B8B251'
 
-const SCHEMAS = ['', 'veddara.', 'IQHML.', 'dbo.', 'DBA.']
-
-async function acharTabela(tabela: string) {
-  for (const sch of SCHEMAS) {
-    const ref = `${sch}${tabela}`
-    try {
-      const r = await agentQuery(`SELECT TOP 2 * FROM ${ref}`, 2)
-      return { tabela, ok: true, encontrada_em: ref, colunas: r.columns, amostra: r.rows }
-    } catch {
-      // tenta o próximo schema
-    }
+async function probe(nome: string, sql: string) {
+  try {
+    const r = await agentQuery(sql, 20)
+    return { nome, ok: true, colunas: r.columns, linhas: r.rows }
+  } catch (e) {
+    return { nome, ok: false, erro: e instanceof Error ? e.message : String(e) }
   }
-  return { tabela, ok: false, erro: 'não encontrada em: ' + SCHEMAS.map(s => s || '(sem schema)').join(', ') }
 }
 
 export async function GET(req: NextRequest) {
@@ -25,10 +19,19 @@ export async function GET(req: NextRequest) {
   if (auth instanceof NextResponse) return auth
 
   const probes = await Promise.all([
-    acharTabela('EZ_VEDDARA_PRODUCT_PRODUCT'),
-    acharTabela('TB_MILE_EXPRESS_CONTROLE_PEDIDO'),
-    acharTabela('TB_MILE_EXPRESS_TRACKING'),
-    acharTabela('EZ_VEDDARA_INVOICE_ITEM'),
+    // 1) o que a tabela de produto tem pro ProductId 87 (FactoryCode x Barcode)
+    probe('Produto 87 (FactoryCode/Barcode)', `
+      SELECT pp.ProductId, pp.FactoryCode, pp.Barcode, pp.Description
+      FROM veddara.EZ_VEDDARA_PRODUCT_PRODUCT pp
+      WHERE pp.SystemCustomerId = '${EMPRESA_ID}' AND pp.ProductId = '87'`),
+    // 2) a Mile tem o SKU que está na planilha master (810068551235)?
+    probe('Mile pelo SKU da master (810068551235)', `
+      SELECT SKU_PRODUTO, DS_PRODUTO, QT_ESTOQUE_ATUAL, DT_ESTOQUE
+      FROM veddara.TB_MILE_EXPRESS_ESTOQUE WHERE SKU_PRODUTO = '810068551235'`),
+    // 3) a Mile tem esse produto com algum OUTRO SKU? (busca pela descrição)
+    probe('Mile por descrição (2700MG)', `
+      SELECT SKU_PRODUTO, DS_PRODUTO, QT_ESTOQUE_ATUAL, DT_ESTOQUE
+      FROM veddara.TB_MILE_EXPRESS_ESTOQUE WHERE UPPER(DS_PRODUTO) LIKE '%2700%'`),
   ])
 
   return NextResponse.json({ probes }, { headers: { 'Cache-Control': 'no-store' } })
