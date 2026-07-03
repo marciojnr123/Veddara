@@ -214,6 +214,15 @@ const NAV_ITEMS = [
     ),
   },
   {
+    href: '/estoque',
+    label: 'Estoque',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M21 8l-9-5-9 5m18 0l-9 5m9-5v8l-9 5m0-8L3 8m9 5v8M3 8v8l9 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    ),
+  },
+  {
     href: '/chat',
     label: 'Chat IA',
     icon: (
