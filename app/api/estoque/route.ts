@@ -22,6 +22,10 @@ const str = (v: unknown): string => String(v ?? '').trim()
 
 const EMPRESA_ID = '929577C5-3B2C-459C-973E-C46211B8B251'
 const BASE_VENDAS = '2025-08-01'
+// Vendas com condição de pagamento "VENDA CONSIGNADA" não contam no estoque.
+// Filtro permanente (exclui automaticamente, sem depender da planilha de acertos).
+const CONSIGNADA_HEX = '8D64213D82F64353A325CD3CD0F7988D'
+const EXCLUI_CONSIGNADA = `AND (io.PaymentTermId IS NULL OR UPPER(REPLACE(CAST(io.PaymentTermId AS VARCHAR(64)), '-', '')) <> '${CONSIGNADA_HEX}')`
 // Planilhas
 const SHEET_MASTER_ID = '18izoV6xD2sbzLq3zBKqGpX2L6pzhI3S4eYtRApMVuqQ' // aba 1: Product Id | Descrição | Marca | ... | Lote | Estoque Inicial
 const SHEET_COMPRAS_ID = '1SalDB0AuYAVIWGV8OYMJQ5EZQ8ZKXJNLAeGHDcRDnds' // aba "Compras": Product Id | ... | Qtde | ...
@@ -53,6 +57,7 @@ function sqlVendasSemInt(acertosIds: string[]): string {
         SELECT RTRIM(CAST(cp.CD_PEDIDO AS VARCHAR(20))) FROM veddara.TB_MILE_EXPRESS_CONTROLE_PEDIDO cp
         WHERE cp.CD_STATUS = 'TRANSMITIDO' AND cp.CD_PEDIDO IS NOT NULL
       )
+      ${EXCLUI_CONSIGNADA}
       ${acertosClause}
     GROUP BY pp.ProductId`
 }
@@ -92,6 +97,7 @@ function sqlMileSemInt(acertosIds: string[]): string {
       AND io.DateInvoiceOrder >= '${BASE_VENDAS}'
       AND sp.Firstname NOT IN ('CANNACARE', 'CANNECT ', 'FLEXUS SOLUTION LLC')
       AND CAST(io.OrderId AS VARCHAR(20)) IN (${MILE_SEM_INT_PEDIDOS})
+      ${EXCLUI_CONSIGNADA}
       ${acertosClause}
     GROUP BY pp.ProductId`
 }
