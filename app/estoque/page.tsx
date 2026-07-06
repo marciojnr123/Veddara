@@ -62,6 +62,9 @@ const CSS = `
 .kest-table td.atual.neg { color: var(--danger); }
 .kest-table tbody tr:hover td { background: #f8fbff; }
 .kest-badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 800; background: #fff7ed; color: var(--warn); }
+.kest-st { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; }
+.kest-st.ok { background: #ecfdf5; color: var(--ok); }
+.kest-st.nok { background: #fff7ed; color: var(--warn); }
 .kest-empty { padding: 40px; text-align: center; color: var(--ink-3); font-size: 13.5px; }
 .kest-sk { height: 300px; border-radius: 16px; background: linear-gradient(90deg,#f1f5f9,#f8fafc,#f1f5f9); background-size: 200% 100%; animation: kestpulse 1.3s ease-in-out infinite; }
 @keyframes kestpulse { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
@@ -75,6 +78,7 @@ export default function EstoquePage() {
   const [comprasErro, setComprasErro] = useState<string | null>(null)
   const [mileErro, setMileErro] = useState<string | null>(null)
   const [mileSemIntErro, setMileSemIntErro] = useState<string | null>(null)
+  const [remessasErro, setRemessasErro] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
   const [soBaixo, setSoBaixo] = useState(false)
   const [marca, setMarca] = useState('')
@@ -83,13 +87,15 @@ export default function EstoquePage() {
     setErro('')
     fetch('/api/estoque')
       .then(res => { if (res.status === 401) { router.push('/login'); return null } return res.json() })
-      .then(d => { if (!d) return; if (d.error) { setErro(String(d.error)); setItens([]); return } setItens(d.itens as EstoqueItem[]); setVendasErro(d.vendasErro ?? null); setComprasErro(d.comprasErro ?? null); setMileErro(d.mileErro ?? null); setMileSemIntErro(d.mileSemIntErro ?? null) })
+      .then(d => { if (!d) return; if (d.error) { setErro(String(d.error)); setItens([]); return } setItens(d.itens as EstoqueItem[]); setVendasErro(d.vendasErro ?? null); setComprasErro(d.comprasErro ?? null); setMileErro(d.mileErro ?? null); setMileSemIntErro(d.mileSemIntErro ?? null); setRemessasErro(d.remessasErro ?? null) })
       .catch(e => { setErro(String(e)); setItens([]) })
   }, [router])
   useEffect(() => { carregar() }, [carregar])
 
-  // Estoque lógico = Mile físico − vendas sem integração − Mile sem integração + compras
-  const estoqueLogico = (i: EstoqueItem) => i.atual - i.vendasSemInt - i.mileSemInt + i.compras
+  // Estoque lógico = Mile − vendas s/ integr. − Mile s/ integr. − remessas não enviadas + compras
+  const estoqueLogico = (i: EstoqueItem) => i.atual - i.vendasSemInt - i.mileSemInt - i.remessasNaoInt + i.compras
+  // Conciliação OK/NOK: (inicial + vendas s/int + compras − qt enviada) + Mile s/int == Est. Mile
+  const status = (i: EstoqueItem) => (i.inicial + i.vendasSemInt + i.compras - i.qtEnviada + i.mileSemInt) === i.atual ? 'OK' : 'NOK'
 
   const marcas = useMemo(() => {
     const s = new Set((itens ?? []).map(i => i.marca).filter(Boolean))
@@ -136,6 +142,7 @@ export default function EstoquePage() {
         {comprasErro && <div className="kest-tablewrap" style={{ padding: 12, color: '#b45309', fontSize: 12.5 }}>⚠️ Compras (planilha) falhou: {comprasErro}</div>}
         {mileErro && <div className="kest-tablewrap" style={{ padding: 12, color: '#b45309', fontSize: 12.5 }}>⚠️ Estoque Mile falhou: {mileErro}</div>}
         {mileSemIntErro && <div className="kest-tablewrap" style={{ padding: 12, color: '#b45309', fontSize: 12.5 }}>⚠️ Mile sem integração falhou: {mileSemIntErro}</div>}
+        {remessasErro && <div className="kest-tablewrap" style={{ padding: 12, color: '#b45309', fontSize: 12.5 }}>⚠️ Remessas parciais (planilha) falhou: {remessasErro}</div>}
 
         {/* KPIs */}
         <div className="kest-kpis">
@@ -173,6 +180,7 @@ export default function EstoquePage() {
                   <th>Mile s/ integr.</th>
                   <th>Compras</th>
                   <th>Estoque</th>
+                  <th style={{ textAlign: 'center' }}>Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -189,16 +197,17 @@ export default function EstoquePage() {
                       <td style={{ color: i.mileSemInt > 0 ? '#ea580c' : '#94a3b8', fontWeight: i.mileSemInt > 0 ? 700 : 400 }}>{i.mileSemInt ? fmtNum(i.mileSemInt) : '—'}</td>
                       <td style={{ color: i.compras > 0 ? '#16a34a' : '#94a3b8', fontWeight: i.compras > 0 ? 700 : 400 }}>{i.compras ? fmtNum(i.compras) : '—'}</td>
                       <td className={`atual ${est < 0 ? 'neg' : ''}`}>{fmtNum(est)}</td>
+                      <td style={{ textAlign: 'center' }}><span className={`kest-st ${status(i) === 'OK' ? 'ok' : 'nok'}`}>{status(i)}</span></td>
                     </tr>
                   )
                 })}
-                {linhas.length === 0 && <tr><td colSpan={9}><div className="kest-empty">Nenhum item com esses filtros.</div></td></tr>}
+                {linhas.length === 0 && <tr><td colSpan={10}><div className="kest-empty">Nenhum item com esses filtros.</div></td></tr>}
               </tbody>
             </table>
           </div>
         )}
 
-        <div className="kest-legend" style={{ fontSize: 11.5, color: '#94a3b8' }}><b>Estoque</b> = Est. Mile − Vendas s/ integr. − Mile s/ integr. + Compras · <b style={{ color: '#e11d48' }}>vermelho</b> = negativo. Fontes ao vivo: Mile (estoque + transmitidos + tracking), vendas (Sybase), planilhas (master, compras, acertos).</div>
+        <div className="kest-legend" style={{ fontSize: 11.5, color: '#94a3b8' }}><b>Estoque</b> = Est. Mile − Vendas s/ integr. − Mile s/ integr. − remessas não enviadas + Compras · <b className="ok" style={{ color: '#16a34a' }}>OK</b>/<b style={{ color: '#ea580c' }}>NOK</b> = conciliação (inicial + movimentos = Mile). Fontes ao vivo: Mile, vendas (Sybase), planilhas (master, compras, acertos, remessas).</div>
       </main>
     </div>
   )

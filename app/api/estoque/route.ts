@@ -14,6 +14,8 @@ export interface EstoqueItem {
   minimo: number
   vendasSemInt: number
   mileSemInt: number
+  qtEnviada: number       // remessas parciais: quanto realmente saiu (p/ OK-NOK)
+  remessasNaoInt: number  // remessas parciais: quanto ainda falta enviar (desconta do estoque)
   compras: number
   inicial: number
 }
@@ -31,6 +33,7 @@ const EXCLUI_CONSIGNADA = `AND (io.PaymentTermId IS NULL OR UPPER(REPLACE(CAST(i
 const SHEET_MASTER_ID = '18izoV6xD2sbzLq3zBKqGpX2L6pzhI3S4eYtRApMVuqQ' // aba 1: Product Id | Descrição | Marca | ... | Lote | Estoque Inicial
 const SHEET_COMPRAS_ID = '1SalDB0AuYAVIWGV8OYMJQ5EZQ8ZKXJNLAeGHDcRDnds' // aba "Compras": Product Id | ... | Qtde | ...
 const SHEET_ACERTOS_ID = '1K53zArbOU4mr8YRQgXTfVA05w5NHaLTxEBEBWFV0SKQ' // aba 1: Invoice | Motivo (pedidos a desconsiderar)
+const SHEET_REMESSAS_ID = '1ryL8x2SjMsEl2UaGSZMjPpFuoBC1AtLfiVaxLmwhPVY' // Pedido | Produto | Qtde Comprada | Qt Enviada | Qt nao Integrada | ...
 
 const SQL_MILE = `
   SELECT e.SKU_PRODUTO, e.DS_PRODUTO, e.QT_ESTOQUE_ATUAL, e.QT_ESTOQUE_RESERVADO, e.QT_ESTOQUE_REAL, e.QT_ESTOQUE_MINIMO
@@ -114,6 +117,25 @@ async function acertosInvoices(): Promise<string[]> {
   return ids
 }
 
+// Remessas parciais (planilha): pedidos a excluir das vendas + Qt Enviada / Qt não Integrada por Product Id.
+// Cols: Pedido | Produto | Qtde Comprada | Qt Enviada | Qt nao Integrada | ...
+async function remessasParciais() {
+  const rows = await fetchSheet(SHEET_REMESSAS_ID)
+  const pedidos: string[] = []
+  const enviadaPorPid = new Map<string, number>()
+  const naoIntPorPid = new Map<string, number>()
+  for (let r = 1; r < rows.length; r++) {
+    const pedido = (rows[r][0] || '').trim()
+    const pid = (rows[r][1] || '').trim()
+    if (/^\d+$/.test(pedido)) pedidos.push(pedido)
+    if (pid) {
+      enviadaPorPid.set(pid, (enviadaPorPid.get(pid) ?? 0) + numBR(rows[r][3] || ''))
+      naoIntPorPid.set(pid, (naoIntPorPid.get(pid) ?? 0) + numBR(rows[r][4] || ''))
+    }
+  }
+  return { pedidos: Array.from(new Set(pedidos)), enviadaPorPid, naoIntPorPid }
+}
+
 // Compras da planilha, somadas por Product Id
 async function comprasPorProductId(): Promise<Map<string, number>> {
   const rows = await fetchSheet(SHEET_COMPRAS_ID, 'Compras')
@@ -150,16 +172,23 @@ export async function GET() {
   const session = getSession()
   if (!session) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
   try {
-    // acertos primeiro (a query de vendas precisa deles); se falhar, segue sem excluir
+    // acertos + remessas primeiro (as queries de vendas precisam excluir esses pedidos)
     let acertos: string[] = []
     let acertosErro: string | null = null
     try { acertos = await acertosInvoices() } catch (e) { acertosErro = e instanceof Error ? e.message : String(e) }
 
+    let remessas = { pedidos: [] as string[], enviadaPorPid: new Map<string, number>(), naoIntPorPid: new Map<string, number>() }
+    let remessasErro: string | null = null
+    try { remessas = await remessasParciais() } catch (e) { remessasErro = e instanceof Error ? e.message : String(e) }
+
+    // exclui das vendas: acertos + pedidos de remessa parcial (tratados à parte pela planilha)
+    const exclui = [...acertos, ...remessas.pedidos]
+
     const [rMaster, rMile, rVendas, rMileSemInt, rCompras] = await Promise.allSettled([
       produtosMaster(),
       agentQuery(SQL_MILE, 8000),
-      agentQuery(sqlVendasSemInt(acertos), 5000),
-      agentQuery(sqlMileSemInt(acertos), 5000),
+      agentQuery(sqlVendasSemInt(exclui), 5000),
+      agentQuery(sqlMileSemInt(exclui), 5000),
       comprasPorProductId(),
     ])
 
@@ -203,12 +232,14 @@ export async function GET() {
         minimo: mile?.minimo ?? 0,
         vendasSemInt: vendasMap.get(p.productId) ?? 0,
         mileSemInt: mileSemIntMap.get(p.productId) ?? 0,
+        qtEnviada: remessas.enviadaPorPid.get(p.productId) ?? 0,
+        remessasNaoInt: remessas.naoIntPorPid.get(p.productId) ?? 0,
         compras: comprasMap.get(p.productId) ?? 0,
         inicial: p.inicial,
       }
     })
 
-    return NextResponse.json({ itens, mileErro, vendasErro, mileSemIntErro, comprasErro, acertosErro, acertosCount: acertos.length }, { headers: { 'Cache-Control': 'no-store' } })
+    return NextResponse.json({ itens, mileErro, vendasErro, mileSemIntErro, comprasErro, acertosErro, remessasErro }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 })
   }
