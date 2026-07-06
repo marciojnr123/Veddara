@@ -72,6 +72,7 @@ export default function EstoquePage() {
   const [vendasErro, setVendasErro] = useState<string | null>(null)
   const [comprasErro, setComprasErro] = useState<string | null>(null)
   const [mileErro, setMileErro] = useState<string | null>(null)
+  const [mileSemIntErro, setMileSemIntErro] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
   const [soBaixo, setSoBaixo] = useState(false)
 
@@ -79,14 +80,13 @@ export default function EstoquePage() {
     setErro('')
     fetch('/api/estoque')
       .then(res => { if (res.status === 401) { router.push('/login'); return null } return res.json() })
-      .then(d => { if (!d) return; if (d.error) { setErro(String(d.error)); setItens([]); return } setItens(d.itens as EstoqueItem[]); setVendasErro(d.vendasErro ?? null); setComprasErro(d.comprasErro ?? null); setMileErro(d.mileErro ?? null) })
+      .then(d => { if (!d) return; if (d.error) { setErro(String(d.error)); setItens([]); return } setItens(d.itens as EstoqueItem[]); setVendasErro(d.vendasErro ?? null); setComprasErro(d.comprasErro ?? null); setMileErro(d.mileErro ?? null); setMileSemIntErro(d.mileSemIntErro ?? null) })
       .catch(e => { setErro(String(e)); setItens([]) })
   }, [router])
   useEffect(() => { carregar() }, [carregar])
 
-  // Estoque lógico = Mile físico − vendas sem integração + compras
-  // (falta ainda "Mile sem integração" e "qtde enviada" — dependem da tabela de tracking)
-  const estoqueLogico = (i: EstoqueItem) => i.atual - i.vendasSemInt + i.compras
+  // Estoque lógico = Mile físico − vendas sem integração − Mile sem integração + compras
+  const estoqueLogico = (i: EstoqueItem) => i.atual - i.vendasSemInt - i.mileSemInt + i.compras
 
   const linhas = useMemo(() => {
     if (!itens) return []
@@ -120,12 +120,13 @@ export default function EstoquePage() {
           </div>
         </div>
 
-        <div className="kest-prev">Estoque lógico ao vivo (Mile − vendas s/ integr. + compras) · falta Mile s/ integr. e qtde enviada p/ o OK/NOK exato</div>
+        <div className="kest-prev">Estoque lógico ao vivo · Mile − vendas s/ integr. − Mile s/ integr. + compras</div>
 
         {erro && <div className="kest-tablewrap" style={{ padding: 16, color: '#dc2626', fontSize: 13 }}>Erro ao carregar estoque: {erro}</div>}
         {vendasErro && <div className="kest-tablewrap" style={{ padding: 12, color: '#b45309', fontSize: 12.5 }}>⚠️ Vendas sem integração falhou: {vendasErro}</div>}
         {comprasErro && <div className="kest-tablewrap" style={{ padding: 12, color: '#b45309', fontSize: 12.5 }}>⚠️ Compras (planilha) falhou: {comprasErro}</div>}
         {mileErro && <div className="kest-tablewrap" style={{ padding: 12, color: '#b45309', fontSize: 12.5 }}>⚠️ Estoque Mile falhou: {mileErro}</div>}
+        {mileSemIntErro && <div className="kest-tablewrap" style={{ padding: 12, color: '#b45309', fontSize: 12.5 }}>⚠️ Mile sem integração falhou: {mileSemIntErro}</div>}
 
         {/* KPIs */}
         <div className="kest-kpis">
@@ -156,6 +157,7 @@ export default function EstoquePage() {
                   <th>Est. inicial</th>
                   <th>Est. Mile</th>
                   <th>Vendas s/ integr.</th>
+                  <th>Mile s/ integr.</th>
                   <th>Compras</th>
                   <th>Estoque</th>
                 </tr>
@@ -171,18 +173,19 @@ export default function EstoquePage() {
                       <td>{i.inicial || '—'}</td>
                       <td className="atual">{fmtNum(i.atual)}</td>
                       <td style={{ color: i.vendasSemInt > 0 ? '#ea580c' : '#94a3b8', fontWeight: i.vendasSemInt > 0 ? 700 : 400 }}>{i.vendasSemInt ? fmtNum(i.vendasSemInt) : '—'}</td>
+                      <td style={{ color: i.mileSemInt > 0 ? '#ea580c' : '#94a3b8', fontWeight: i.mileSemInt > 0 ? 700 : 400 }}>{i.mileSemInt ? fmtNum(i.mileSemInt) : '—'}</td>
                       <td style={{ color: i.compras > 0 ? '#16a34a' : '#94a3b8', fontWeight: i.compras > 0 ? 700 : 400 }}>{i.compras ? fmtNum(i.compras) : '—'}</td>
                       <td className={`atual ${est < 0 ? 'neg' : ''}`}>{fmtNum(est)}</td>
                     </tr>
                   )
                 })}
-                {linhas.length === 0 && <tr><td colSpan={8}><div className="kest-empty">Nenhum item com esses filtros.</div></td></tr>}
+                {linhas.length === 0 && <tr><td colSpan={9}><div className="kest-empty">Nenhum item com esses filtros.</div></td></tr>}
               </tbody>
             </table>
           </div>
         )}
 
-        <div className="kest-legend" style={{ fontSize: 11.5, color: '#94a3b8' }}><b>Estoque</b> = Est. Mile − Vendas s/ integração + Compras · <b style={{ color: '#e11d48' }}>vermelho</b> = negativo. Fontes ao vivo: Mile (estoque + transmitidos), vendas (Sybase), planilhas (master, compras, acertos).</div>
+        <div className="kest-legend" style={{ fontSize: 11.5, color: '#94a3b8' }}><b>Estoque</b> = Est. Mile − Vendas s/ integr. − Mile s/ integr. + Compras · <b style={{ color: '#e11d48' }}>vermelho</b> = negativo. Fontes ao vivo: Mile (estoque + transmitidos + tracking), vendas (Sybase), planilhas (master, compras, acertos).</div>
       </main>
     </div>
   )

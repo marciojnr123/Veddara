@@ -12,6 +12,7 @@ export interface EstoqueItem {
   disponivel: number
   minimo: number
   vendasSemInt: number
+  mileSemInt: number
   compras: number
   inicial: number
 }
@@ -52,6 +53,45 @@ function sqlVendasSemInt(acertosIds: string[]): string {
         SELECT RTRIM(CAST(cp.CD_PEDIDO AS VARCHAR(20))) FROM veddara.TB_MILE_EXPRESS_CONTROLE_PEDIDO cp
         WHERE cp.CD_STATUS = 'TRANSMITIDO' AND cp.CD_PEDIDO IS NOT NULL
       )
+      ${acertosClause}
+    GROUP BY pp.ProductId`
+}
+
+// Pedidos "Mile sem integrar" = transmitidos que a Mile ainda NÃO abateu.
+//  Parte 1: com tracking, mas cujo CD_MILE_EXPRESS ainda não tem status PSP/FLT/PIP (não avançou)
+//  Parte 2: transmitidos sem tracking e sem código Mile (bem no início)
+const MILE_SEM_INT_PEDIDOS = `
+  SELECT RTRIM(CAST(cp.CD_PEDIDO AS VARCHAR(20))) AS cd
+  FROM veddara.TB_MILE_EXPRESS_CONTROLE_PEDIDO cp
+  JOIN veddara.TB_MILE_EXPRESS_TRACKING t ON t.CD_MILE_EXPRESS = cp.CD_MILE_EXPRESS
+  WHERE cp.ID_TRACKING IS NOT NULL
+    AND cp.CD_PEDIDO NOT IN (
+      SELECT cp2.CD_PEDIDO
+      FROM veddara.TB_MILE_EXPRESS_CONTROLE_PEDIDO cp2
+      JOIN veddara.TB_MILE_EXPRESS_TRACKING t2 ON t2.CD_MILE_EXPRESS = cp2.CD_MILE_EXPRESS
+      WHERE t2.CD_TRACKING IN ('PSP', 'FLT', 'PIP')
+    )
+  UNION
+  SELECT RTRIM(CAST(cp.CD_PEDIDO AS VARCHAR(20))) AS cd
+  FROM veddara.TB_MILE_EXPRESS_CONTROLE_PEDIDO cp
+  WHERE cp.ID_TRACKING IS NULL AND cp.CD_STATUS = 'TRANSMITIDO' AND cp.CD_MILE_EXPRESS IS NULL`
+
+// Vendas dos pedidos "Mile sem integrar", por Product Id (mesmas exclusões de parceiros/acertos).
+function sqlMileSemInt(acertosIds: string[]): string {
+  const acertosClause = acertosIds.length
+    ? `AND CAST(io.OrderId AS VARCHAR(20)) NOT IN (${acertosIds.map(x => `'${x}'`).join(',')})`
+    : ''
+  return `
+    SELECT pp.ProductId AS pid, SUM(ii.Quantity) AS qtd
+    FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
+    JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON ii.OrderId = io.Id
+    JOIN veddara.EZ_VEDDARA_PRODUCT_PRODUCT pp ON pp.Id = ii.ProductId
+    JOIN veddara.EZ_VEDDARA_SALE_SALESPERSON sp ON sp.Id = io.SalespersonId
+    WHERE io.SystemCustomerId = '${EMPRESA_ID}'
+      AND io.Status IN (1, 100)
+      AND io.DateInvoiceOrder >= '${BASE_VENDAS}'
+      AND sp.Firstname NOT IN ('CANNACARE', 'CANNECT ', 'FLEXUS SOLUTION LLC')
+      AND CAST(io.OrderId AS VARCHAR(20)) IN (${MILE_SEM_INT_PEDIDOS})
       ${acertosClause}
     GROUP BY pp.ProductId`
 }
@@ -107,10 +147,11 @@ export async function GET() {
     let acertosErro: string | null = null
     try { acertos = await acertosInvoices() } catch (e) { acertosErro = e instanceof Error ? e.message : String(e) }
 
-    const [rMaster, rMile, rVendas, rCompras] = await Promise.allSettled([
+    const [rMaster, rMile, rVendas, rMileSemInt, rCompras] = await Promise.allSettled([
       produtosMaster(),
       agentQuery(SQL_MILE, 8000),
       agentQuery(sqlVendasSemInt(acertos), 5000),
+      agentQuery(sqlMileSemInt(acertos), 5000),
       comprasPorProductId(),
     ])
 
@@ -134,6 +175,10 @@ export async function GET() {
     if (rVendas.status === 'fulfilled') for (const r of rVendas.value.rows) vendasMap.set(str(r[0]), num(r[1]))
     const vendasErro = rVendas.status === 'fulfilled' ? null : (rVendas.reason instanceof Error ? rVendas.reason.message : String(rVendas.reason))
 
+    const mileSemIntMap = new Map<string, number>()
+    if (rMileSemInt.status === 'fulfilled') for (const r of rMileSemInt.value.rows) mileSemIntMap.set(str(r[0]), num(r[1]))
+    const mileSemIntErro = rMileSemInt.status === 'fulfilled' ? null : (rMileSemInt.reason instanceof Error ? rMileSemInt.reason.message : String(rMileSemInt.reason))
+
     const comprasMap: Map<string, number> = rCompras.status === 'fulfilled' ? rCompras.value : new Map()
     const comprasErro = rCompras.status === 'fulfilled' ? null : (rCompras.reason instanceof Error ? rCompras.reason.message : String(rCompras.reason))
 
@@ -148,12 +193,13 @@ export async function GET() {
         disponivel: mile?.disponivel ?? 0,
         minimo: mile?.minimo ?? 0,
         vendasSemInt: vendasMap.get(p.productId) ?? 0,
+        mileSemInt: mileSemIntMap.get(p.productId) ?? 0,
         compras: comprasMap.get(p.productId) ?? 0,
         inicial: p.inicial,
       }
     })
 
-    return NextResponse.json({ itens, mileErro, vendasErro, comprasErro, acertosErro, acertosCount: acertos.length }, { headers: { 'Cache-Control': 'no-store' } })
+    return NextResponse.json({ itens, mileErro, vendasErro, mileSemIntErro, comprasErro, acertosErro, acertosCount: acertos.length }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 })
   }
