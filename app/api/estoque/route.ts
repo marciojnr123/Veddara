@@ -7,6 +7,7 @@ export interface EstoqueItem {
   productId: string
   sku: string
   produto: string
+  marca: string
   atual: number
   reservado: number
   disponivel: number
@@ -128,7 +129,7 @@ async function comprasPorProductId(): Promise<Map<string, number>> {
 // Lista oficial de produtos = aba 1 da planilha master
 async function produtosMaster() {
   const rows = await fetchSheet(SHEET_MASTER_ID)
-  const out: Array<{ productId: string; produto: string; sku: string; inicial: number }> = []
+  const out: Array<{ productId: string; produto: string; marca: string; sku: string; inicial: number }> = []
   const vistos = new Set<string>()
   for (let r = 1; r < rows.length; r++) {
     const productId = (rows[r][0] || '').trim()
@@ -137,6 +138,7 @@ async function produtosMaster() {
     out.push({
       productId,
       produto: (rows[r][1] || '').trim(),
+      marca: (rows[r][2] || '').trim(),
       sku: (rows[r][7] || '').trim(),
       inicial: numBR(rows[r][8] || ''),
     })
@@ -194,6 +196,7 @@ export async function GET() {
         productId: p.productId,
         sku: p.sku,
         produto: p.produto,
+        marca: p.marca,
         atual: mile?.atual ?? 0,
         reservado: mile?.reservado ?? 0,
         disponivel: mile?.disponivel ?? 0,

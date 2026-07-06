@@ -40,6 +40,8 @@ const CSS = `
 .kest-filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .kest-search { flex: 1; min-width: 200px; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 9px 14px; font-size: 13.5px; font-family: inherit; color: #1e293b; outline: none; }
 .kest-search:focus { border-color: var(--blue); }
+.kest-select { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; font-size: 13.5px; font-weight: 600; font-family: inherit; color: #1e293b; outline: none; cursor: pointer; }
+.kest-select:focus { border-color: var(--blue); }
 .kest-toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #475569; cursor: pointer; user-select: none; }
 .kest-toggle input { display: none; }
 .kest-toggle .tk { width: 34px; height: 19px; border-radius: 999px; background: #cbd5e1; position: relative; transition: background .15s; }
@@ -75,6 +77,7 @@ export default function EstoquePage() {
   const [mileSemIntErro, setMileSemIntErro] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
   const [soBaixo, setSoBaixo] = useState(false)
+  const [marca, setMarca] = useState('')
 
   const carregar = useCallback(() => {
     setErro('')
@@ -88,16 +91,22 @@ export default function EstoquePage() {
   // Estoque lógico = Mile físico − vendas sem integração − Mile sem integração + compras
   const estoqueLogico = (i: EstoqueItem) => i.atual - i.vendasSemInt - i.mileSemInt + i.compras
 
+  const marcas = useMemo(() => {
+    const s = new Set((itens ?? []).map(i => i.marca).filter(Boolean))
+    return Array.from(s).sort((a, b) => a.localeCompare(b))
+  }, [itens])
+
   const linhas = useMemo(() => {
     if (!itens) return []
     return itens
       .filter(i => {
+        if (marca && i.marca !== marca) return false
         if (busca && !(`${i.productId} ${i.produto} ${i.sku}`.toLowerCase().includes(busca.toLowerCase()))) return false
         if (soBaixo && estoqueLogico(i) >= 0) return false
         return true
       })
       .sort((a, b) => (Number(a.productId) || 0) - (Number(b.productId) || 0))
-  }, [itens, busca, soBaixo])
+  }, [itens, busca, soBaixo, marca])
 
   const totalSkus = itens?.length ?? 0
   const totalUn = (itens ?? []).reduce((s, i) => s + Math.max(estoqueLogico(i), 0), 0)
@@ -138,6 +147,10 @@ export default function EstoquePage() {
 
         {/* Filtros */}
         <div className="kest-filters">
+          <select className="kest-select" value={marca} onChange={e => setMarca(e.target.value)}>
+            <option value="">Todas as marcas</option>
+            {marcas.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
           <input className="kest-search" placeholder="🔍 Buscar produto, SKU ou código…" value={busca} onChange={e => setBusca(e.target.value)} />
           <label className="kest-toggle">
             <input type="checkbox" checked={soBaixo} onChange={e => setSoBaixo(e.target.checked)} />
