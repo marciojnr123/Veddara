@@ -178,6 +178,7 @@ export default function EstoquePage() {
                   <th>Vendas s/ integr.</th>
                   <th>Mile s/ integr.</th>
                   <th>Compras</th>
+                  <th>Remessa P não enviadas</th>
                   <th>Estoque</th>
                   <th style={{ textAlign: 'center' }}>Status</th>
                 </tr>
@@ -195,12 +196,13 @@ export default function EstoquePage() {
                       <td style={{ color: i.vendasSemInt > 0 ? '#ea580c' : '#94a3b8', fontWeight: i.vendasSemInt > 0 ? 700 : 400 }}>{i.vendasSemInt ? fmtNum(i.vendasSemInt) : '—'}</td>
                       <td style={{ color: i.mileSemInt > 0 ? '#ea580c' : '#94a3b8', fontWeight: i.mileSemInt > 0 ? 700 : 400 }}>{i.mileSemInt ? fmtNum(i.mileSemInt) : '—'}</td>
                       <td style={{ color: i.compras > 0 ? '#16a34a' : '#94a3b8', fontWeight: i.compras > 0 ? 700 : 400 }}>{i.compras ? fmtNum(i.compras) : '—'}</td>
+                      <td style={{ color: i.remessasNaoInt > 0 ? '#ea580c' : '#94a3b8', fontWeight: i.remessasNaoInt > 0 ? 700 : 400 }}>{i.remessasNaoInt ? fmtNum(i.remessasNaoInt) : '—'}</td>
                       <td className={`atual ${est < 0 ? 'neg' : ''}`}>{fmtNum(est)}</td>
                       <td style={{ textAlign: 'center' }}><span className={`kest-st ${status(i) === 'OK' ? 'ok' : 'nok'}`}>{status(i)}</span></td>
                     </tr>
                   )
                 })}
-                {linhas.length === 0 && <tr><td colSpan={10}><div className="kest-empty">Nenhum item com esses filtros.</div></td></tr>}
+                {linhas.length === 0 && <tr><td colSpan={11}><div className="kest-empty">Nenhum item com esses filtros.</div></td></tr>}
               </tbody>
             </table>
           </div>
