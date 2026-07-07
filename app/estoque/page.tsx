@@ -93,9 +93,8 @@ export default function EstoquePage() {
   useEffect(() => { carregar() }, [carregar])
 
   // Estoque lógico = Mile − vendas s/ integr. − Mile s/ integr. − remessas não enviadas + compras
-  const estoqueLogico = (i: EstoqueItem) => i.atual - i.vendasSemInt - i.mileSemInt - i.remessasNaoInt + i.compras
-  // Conciliação OK/NOK: (inicial + vendas s/int + compras − qt enviada) + Mile s/int == Est. Mile
-  const status = (i: EstoqueItem) => (i.inicial + i.vendasSemInt + i.compras - i.qtEnviada + i.mileSemInt) === i.atual ? 'OK' : 'NOK'
+  const estoqueLogico = (i: EstoqueItem) => i.estoqueLogico
+  const status = (i: EstoqueItem) => i.status
 
   const marcas = useMemo(() => {
     const s = new Set((itens ?? []).map(i => i.marca).filter(Boolean))

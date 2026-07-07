@@ -1,8 +1,8 @@
+// app/api/estoque/route.ts
+// Lê o estoque já calculado do Postgres (via endpoint HTTPS da VM). Zero regra de negócio aqui.
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { agentQuery } from '@/lib/agent'
-import { fetchSheet, numBR } from '@/lib/sheets'
-
+import https from 'https'
 export interface EstoqueItem {
   productId: string
   sku: string
@@ -14,232 +14,60 @@ export interface EstoqueItem {
   minimo: number
   vendasSemInt: number
   mileSemInt: number
-  qtEnviada: number       // remessas parciais: quanto realmente saiu (p/ OK-NOK)
-  remessasNaoInt: number  // remessas parciais: quanto ainda falta enviar (desconta do estoque)
+  qtEnviada: number
+  remessasNaoInt: number
   compras: number
   inicial: number
+  estoqueLogico: number
+  status: 'OK' | 'NOK'
 }
-
-const num = (v: unknown): number => { const n = Number(v); return Number.isFinite(n) ? n : 0 }
-const str = (v: unknown): string => String(v ?? '').trim()
-
-const EMPRESA_ID = '929577C5-3B2C-459C-973E-C46211B8B251'
-const BASE_VENDAS = '2025-08-01'
-// Vendas com condição de pagamento "VENDA CONSIGNADA" não contam no estoque.
-// Filtro permanente (exclui automaticamente, sem depender da planilha de acertos).
-const CONSIGNADA_HEX = '8D64213D82F64353A325CD3CD0F7988D'
-const EXCLUI_CONSIGNADA = `AND (io.PaymentTermId IS NULL OR UPPER(REPLACE(CAST(io.PaymentTermId AS VARCHAR(64)), '-', '')) <> '${CONSIGNADA_HEX}')`
-// Planilhas
-const SHEET_MASTER_ID = '18izoV6xD2sbzLq3zBKqGpX2L6pzhI3S4eYtRApMVuqQ' // aba 1: Product Id | Descrição | Marca | ... | Lote | Estoque Inicial
-const SHEET_COMPRAS_ID = '1SalDB0AuYAVIWGV8OYMJQ5EZQ8ZKXJNLAeGHDcRDnds' // aba "Compras": Product Id | ... | Qtde | ...
-const SHEET_ACERTOS_ID = '1K53zArbOU4mr8YRQgXTfVA05w5NHaLTxEBEBWFV0SKQ' // aba 1: Invoice | Motivo (pedidos a desconsiderar)
-const SHEET_REMESSAS_ID = '1ryL8x2SjMsEl2UaGSZMjPpFuoBC1AtLfiVaxLmwhPVY' // Pedido | Produto | Qtde Comprada | Qt Enviada | Qt nao Integrada | ...
-
-const SQL_MILE = `
-  SELECT e.SKU_PRODUTO, e.DS_PRODUTO, e.QT_ESTOQUE_ATUAL, e.QT_ESTOQUE_RESERVADO, e.QT_ESTOQUE_REAL, e.QT_ESTOQUE_MINIMO
-  FROM veddara.TB_MILE_EXPRESS_ESTOQUE e
-  JOIN (SELECT SKU_PRODUTO, MAX(DT_ESTOQUE) AS mx FROM veddara.TB_MILE_EXPRESS_ESTOQUE GROUP BY SKU_PRODUTO) m
-    ON m.SKU_PRODUTO = e.SKU_PRODUTO AND m.mx = e.DT_ESTOQUE`
-
-// Vendas SEM integração, por Product Id. Exclui: transmitidos (Mile), parceiros e
-// os acertos (invoices que a equipe marca p/ desconsiderar — vendas internas/consignadas).
-function sqlVendasSemInt(acertosIds: string[]): string {
-  const acertosClause = acertosIds.length
-    ? `AND CAST(io.OrderId AS VARCHAR(20)) NOT IN (${acertosIds.map(x => `'${x}'`).join(',')})`
-    : ''
-  return `
-    SELECT pp.ProductId AS pid, SUM(ii.Quantity) AS qtd
-    FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
-    JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON ii.OrderId = io.Id
-    JOIN veddara.EZ_VEDDARA_PRODUCT_PRODUCT pp ON pp.Id = ii.ProductId
-    JOIN veddara.EZ_VEDDARA_SALE_SALESPERSON sp ON sp.Id = io.SalespersonId
-    WHERE io.SystemCustomerId = '${EMPRESA_ID}'
-      AND io.Status IN (1, 100)
-      AND io.DateInvoiceOrder >= '${BASE_VENDAS}'
-      AND sp.Firstname NOT IN ('CANNACARE', 'CANNECT ', 'FLEXUS SOLUTION LLC')
-      AND CAST(io.OrderId AS VARCHAR(20)) NOT IN (
-        SELECT RTRIM(CAST(cp.CD_PEDIDO AS VARCHAR(20))) FROM veddara.TB_MILE_EXPRESS_CONTROLE_PEDIDO cp
-        WHERE cp.CD_STATUS = 'TRANSMITIDO' AND cp.CD_PEDIDO IS NOT NULL
-      )
-      ${EXCLUI_CONSIGNADA}
-      ${acertosClause}
-    GROUP BY pp.ProductId`
-}
-
-// Pedidos "Mile sem integrar" = transmitidos que a Mile ainda NÃO abateu.
-//  Parte 1: com tracking, mas cujo CD_MILE_EXPRESS ainda não tem status PSP/FLT/PIP (não avançou)
-//  Parte 2: transmitidos sem tracking e sem código Mile (bem no início)
-const MILE_SEM_INT_PEDIDOS = `
-  SELECT RTRIM(CAST(cp.CD_PEDIDO AS VARCHAR(20))) AS cd
-  FROM veddara.TB_MILE_EXPRESS_CONTROLE_PEDIDO cp
-  JOIN veddara.TB_MILE_EXPRESS_TRACKING t ON t.CD_MILE_EXPRESS = cp.CD_MILE_EXPRESS
-  WHERE cp.ID_TRACKING IS NOT NULL
-    AND cp.CD_PEDIDO NOT IN (
-      SELECT cp2.CD_PEDIDO
-      FROM veddara.TB_MILE_EXPRESS_CONTROLE_PEDIDO cp2
-      JOIN veddara.TB_MILE_EXPRESS_TRACKING t2 ON t2.CD_MILE_EXPRESS = cp2.CD_MILE_EXPRESS
-      WHERE t2.CD_TRACKING IN ('PSP', 'FLT', 'PIP')
-    )
-  UNION
-  SELECT RTRIM(CAST(cp.CD_PEDIDO AS VARCHAR(20))) AS cd
-  FROM veddara.TB_MILE_EXPRESS_CONTROLE_PEDIDO cp
-  WHERE cp.ID_TRACKING IS NULL AND cp.CD_STATUS = 'TRANSMITIDO' AND cp.CD_MILE_EXPRESS IS NULL`
-
-// Vendas dos pedidos "Mile sem integrar", por Product Id (mesmas exclusões de parceiros/acertos).
-function sqlMileSemInt(acertosIds: string[]): string {
-  const acertosClause = acertosIds.length
-    ? `AND CAST(io.OrderId AS VARCHAR(20)) NOT IN (${acertosIds.map(x => `'${x}'`).join(',')})`
-    : ''
-  return `
-    SELECT pp.ProductId AS pid, SUM(ii.Quantity) AS qtd
-    FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
-    JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON ii.OrderId = io.Id
-    JOIN veddara.EZ_VEDDARA_PRODUCT_PRODUCT pp ON pp.Id = ii.ProductId
-    JOIN veddara.EZ_VEDDARA_SALE_SALESPERSON sp ON sp.Id = io.SalespersonId
-    WHERE io.SystemCustomerId = '${EMPRESA_ID}'
-      AND io.Status IN (1, 100)
-      AND io.DateInvoiceOrder >= '${BASE_VENDAS}'
-      AND sp.Firstname NOT IN ('CANNACARE', 'CANNECT ', 'FLEXUS SOLUTION LLC')
-      AND CAST(io.OrderId AS VARCHAR(20)) IN (${MILE_SEM_INT_PEDIDOS})
-      ${EXCLUI_CONSIGNADA}
-      ${acertosClause}
-    GROUP BY pp.ProductId`
-}
-
-// Invoices a desconsiderar (planilha Acertos), só números
-async function acertosInvoices(): Promise<string[]> {
-  const rows = await fetchSheet(SHEET_ACERTOS_ID)
-  const ids: string[] = []
-  for (let r = 1; r < rows.length; r++) {
-    const inv = (rows[r][0] || '').trim()
-    if (/^\d+$/.test(inv)) ids.push(inv)
-  }
-  return ids
-}
-
-// Remessas parciais (planilha): pedidos a excluir das vendas + Qt Enviada / Qt não Integrada por Product Id.
-// Cols: Pedido | Produto | Qtde Comprada | Qt Enviada | Qt nao Integrada | ...
-async function remessasParciais() {
-  const rows = await fetchSheet(SHEET_REMESSAS_ID)
-  const pedidos: string[] = []
-  const enviadaPorPid = new Map<string, number>()
-  const naoIntPorPid = new Map<string, number>()
-  for (let r = 1; r < rows.length; r++) {
-    const pedido = (rows[r][0] || '').trim()
-    const pid = (rows[r][1] || '').trim()
-    if (/^\d+$/.test(pedido)) pedidos.push(pedido)
-    if (pid) {
-      enviadaPorPid.set(pid, (enviadaPorPid.get(pid) ?? 0) + numBR(rows[r][3] || ''))
-      naoIntPorPid.set(pid, (naoIntPorPid.get(pid) ?? 0) + numBR(rows[r][4] || ''))
-    }
-  }
-  return { pedidos: Array.from(new Set(pedidos)), enviadaPorPid, naoIntPorPid }
-}
-
-// Compras da planilha, somadas por Product Id
-async function comprasPorProductId(): Promise<Map<string, number>> {
-  const rows = await fetchSheet(SHEET_COMPRAS_ID, 'Compras')
-  const m = new Map<string, number>()
-  for (let r = 1; r < rows.length; r++) {
-    const pid = (rows[r][0] || '').trim()
-    if (!pid) continue
-    m.set(pid, (m.get(pid) ?? 0) + numBR(rows[r][3] || ''))
-  }
-  return m
-}
-
-// Lista oficial de produtos = aba 1 da planilha master
-async function produtosMaster() {
-  const rows = await fetchSheet(SHEET_MASTER_ID)
-  const out: Array<{ productId: string; produto: string; marca: string; sku: string; inicial: number }> = []
-  const vistos = new Set<string>()
-  for (let r = 1; r < rows.length; r++) {
-    const productId = (rows[r][0] || '').trim()
-    if (!productId || vistos.has(productId)) continue
-    vistos.add(productId)
-    out.push({
-      productId,
-      produto: (rows[r][1] || '').trim(),
-      marca: (rows[r][2] || '').trim(),
-      sku: (rows[r][7] || '').trim(),
-      inicial: numBR(rows[r][8] || ''),
+const API_URL = process.env.ESTOQUE_API_URL || 'https://173.254.245.217:8443/estoque'
+const API_KEY = process.env.ESTOQUE_API_KEY || ''
+function fetchEstoque(): Promise<Record<string, unknown>[]> {
+  return new Promise((resolve, reject) => {
+    const req = https.request(API_URL, {
+      method: 'GET',
+      headers: { 'X-API-Key': API_KEY },
+      rejectUnauthorized: false,
+      timeout: 20000,
+    }, res => {
+      let body = ''
+      res.on('data', c => (body += c))
+      res.on('end', () => {
+        if (res.statusCode !== 200) return reject(new Error(`API ${res.statusCode}: ${body.slice(0, 200)}`))
+        try { resolve(JSON.parse(body)) } catch (e) { reject(e) }
+      })
     })
-  }
-  return out
+    req.on('error', reject)
+    req.on('timeout', () => req.destroy(new Error('timeout')))
+    req.end()
+  })
 }
-
+const n = (v: unknown): number => { const x = Number(v); return Number.isFinite(x) ? x : 0 }
 export async function GET() {
   const session = getSession()
   if (!session) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
   try {
-    // acertos + remessas primeiro (as queries de vendas precisam excluir esses pedidos)
-    let acertos: string[] = []
-    let acertosErro: string | null = null
-    try { acertos = await acertosInvoices() } catch (e) { acertosErro = e instanceof Error ? e.message : String(e) }
-
-    let remessas = { pedidos: [] as string[], enviadaPorPid: new Map<string, number>(), naoIntPorPid: new Map<string, number>() }
-    let remessasErro: string | null = null
-    try { remessas = await remessasParciais() } catch (e) { remessasErro = e instanceof Error ? e.message : String(e) }
-
-    // exclui das vendas: acertos + pedidos de remessa parcial (tratados à parte pela planilha)
-    const exclui = [...acertos, ...remessas.pedidos]
-
-    const [rMaster, rMile, rVendas, rMileSemInt, rCompras] = await Promise.allSettled([
-      produtosMaster(),
-      agentQuery(SQL_MILE, 8000),
-      agentQuery(sqlVendasSemInt(exclui), 5000),
-      agentQuery(sqlMileSemInt(exclui), 5000),
-      comprasPorProductId(),
-    ])
-
-    if (rMaster.status !== 'fulfilled') {
-      const e = rMaster.reason
-      return NextResponse.json({ error: 'Falha ao ler a planilha master: ' + (e instanceof Error ? e.message : String(e)) }, { status: 500 })
-    }
-
-    // Mile por SKU (só o snapshot mais recente já vem da query; dedup extra por SKU)
-    const mileMap = new Map<string, { atual: number; reservado: number; disponivel: number; minimo: number }>()
-    if (rMile.status === 'fulfilled') {
-      for (const r of rMile.value.rows) {
-        const sku = str(r[0])
-        if (!sku || mileMap.has(sku)) continue
-        mileMap.set(sku, { atual: num(r[2]), reservado: num(r[3]), disponivel: num(r[4]), minimo: num(r[5]) })
-      }
-    }
-    const mileErro = rMile.status === 'fulfilled' ? null : (rMile.reason instanceof Error ? rMile.reason.message : String(rMile.reason))
-
-    const vendasMap = new Map<string, number>()
-    if (rVendas.status === 'fulfilled') for (const r of rVendas.value.rows) vendasMap.set(str(r[0]), num(r[1]))
-    const vendasErro = rVendas.status === 'fulfilled' ? null : (rVendas.reason instanceof Error ? rVendas.reason.message : String(rVendas.reason))
-
-    const mileSemIntMap = new Map<string, number>()
-    if (rMileSemInt.status === 'fulfilled') for (const r of rMileSemInt.value.rows) mileSemIntMap.set(str(r[0]), num(r[1]))
-    const mileSemIntErro = rMileSemInt.status === 'fulfilled' ? null : (rMileSemInt.reason instanceof Error ? rMileSemInt.reason.message : String(rMileSemInt.reason))
-
-    const comprasMap: Map<string, number> = rCompras.status === 'fulfilled' ? rCompras.value : new Map()
-    const comprasErro = rCompras.status === 'fulfilled' ? null : (rCompras.reason instanceof Error ? rCompras.reason.message : String(rCompras.reason))
-
-    const itens: EstoqueItem[] = rMaster.value.map(p => {
-      const mile = mileMap.get(p.sku)
-      return {
-        productId: p.productId,
-        sku: p.sku,
-        produto: p.produto,
-        marca: p.marca,
-        atual: mile?.atual ?? 0,
-        reservado: mile?.reservado ?? 0,
-        disponivel: mile?.disponivel ?? 0,
-        minimo: mile?.minimo ?? 0,
-        vendasSemInt: vendasMap.get(p.productId) ?? 0,
-        mileSemInt: mileSemIntMap.get(p.productId) ?? 0,
-        qtEnviada: remessas.enviadaPorPid.get(p.productId) ?? 0,
-        remessasNaoInt: remessas.naoIntPorPid.get(p.productId) ?? 0,
-        compras: comprasMap.get(p.productId) ?? 0,
-        inicial: p.inicial,
-      }
-    })
-
-    return NextResponse.json({ itens, mileErro, vendasErro, mileSemIntErro, comprasErro, acertosErro, remessasErro }, { headers: { 'Cache-Control': 'no-store' } })
+    const rows = await fetchEstoque()
+    const itens: EstoqueItem[] = rows.map(r => ({
+      productId: String(r.product_id),
+      sku: (r.sku_mile as string) ?? '',
+      produto: (r.nome as string) ?? '',
+      marca: (r.marca as string) ?? '',
+      atual: n(r.est_mile),
+      reservado: 0,
+      disponivel: 0,
+      minimo: 0,
+      vendasSemInt: n(r.vendas_sem_int),
+      mileSemInt: n(r.mile_sem_int),
+      qtEnviada: n(r.qt_enviada),
+      remessasNaoInt: n(r.remessas_nao_env),
+      compras: n(r.compras),
+      inicial: n(r.inicial),
+      estoqueLogico: n(r.estoque_logico),
+      status: r.status === 'OK' ? 'OK' : 'NOK',
+    }))
+    return NextResponse.json({ itens }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 })
   }
