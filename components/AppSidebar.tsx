@@ -223,6 +223,15 @@ const NAV_ITEMS = [
     ),
   },
   {
+    href: '/auditoria',
+    label: 'Auditoria',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M9 11l3 3 8-8M20 12v6a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    ),
+  },
+  {
     href: '/chat',
     label: 'Chat IA',
     icon: (
