@@ -652,6 +652,26 @@ const CHART_TYPE_OPTS: { type: ChartType; label: string; icon: React.ReactNode }
   },
 ]
 
+function toCsv(headers: string[], rows: string[][]): string {
+  const esc = (v: unknown) => {
+    const s = String(v ?? '')
+    return /[",\n\r;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+  }
+  const linhas = [headers.map(esc).join(','), ...rows.map(r => r.map(esc).join(','))]
+  return '﻿' + linhas.join('\r\n') // BOM p/ Excel abrir acentos certo
+}
+function baixarCsv(headers: string[], rows: string[][]) {
+  const blob = new Blob([toCsv(headers, rows)], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `consulta-${new Date().toISOString().slice(0, 10)}.csv`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
 function TableAndChart({ headers, rows }: { headers: string[]; rows: string[][] }) {
   const [view, setView] = useState<'table' | 'chart'>('chart')
 
@@ -776,9 +796,9 @@ function TableAndChart({ headers, rows }: { headers: string[]; rows: string[][] 
 
   return (
     <div style={{ margin: '10px 0' }}>
-      {hasChart && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', gap: '8px', flexWrap: 'wrap' }}>
-          {/* View toggle */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', gap: '8px', flexWrap: 'wrap' }}>
+        {/* View toggle (só quando há gráfico) ou contagem de linhas */}
+        {hasChart ? (
           <div className="kc-chart-toggle">
             <button className={`kc-chart-tab${view === 'chart' ? ' on' : ''}`} onClick={() => setView('chart')}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M4 19V5M4 19h16M8 15V9M12 15V6M16 15v-3" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
@@ -789,9 +809,13 @@ function TableAndChart({ headers, rows }: { headers: string[]; rows: string[][] 
               Tabela
             </button>
           </div>
+        ) : (
+          <span style={{ fontSize: '11.5px', color: 'var(--ink-3)', fontWeight: 600 }}>{rows.length} linha{rows.length !== 1 ? 's' : ''}</span>
+        )}
 
-          {/* Chart type selector — only when chart is visible */}
-          {view === 'chart' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {/* Chart type selector — só quando o gráfico está visível */}
+          {hasChart && view === 'chart' && (
             <div style={{ display: 'flex', gap: '4px', background: 'var(--surface-2)', borderRadius: '10px', padding: '3px' }}>
               {CHART_TYPE_OPTS.map(opt => (
                 <button
@@ -815,8 +839,22 @@ function TableAndChart({ headers, rows }: { headers: string[]; rows: string[][] 
               ))}
             </div>
           )}
+          {/* Baixar CSV — sempre disponível */}
+          <button
+            onClick={() => baixarCsv(headers, rows)}
+            title="Baixar CSV"
+            style={{
+              display: 'flex', alignItems: 'center', gap: '5px',
+              padding: '6px 11px', borderRadius: '8px', border: '1px solid var(--line)',
+              background: 'var(--surface)', color: 'var(--ink-2)', cursor: 'pointer',
+              fontFamily: 'inherit', fontSize: '11.5px', fontWeight: 700,
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            CSV
+          </button>
         </div>
-      )}
+      </div>
       {view === 'chart' && hasChart ? chartEl : tableEl}
     </div>
   )
