@@ -7,6 +7,23 @@ import type { EstoqueItem } from '@/app/api/estoque/route'
 
 function fmtNum(v: number): string { return v.toLocaleString('pt-BR') }
 
+// Baixa a tabela (respeitando os filtros aplicados) como CSV — abre direto no Excel.
+function baixarEstoque(linhas: EstoqueItem[]) {
+  const esc = (v: unknown) => { const s = String(v ?? ''); return /[",\n\r;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s }
+  const headers = ['Código', 'Produto', 'SKU', 'Est. Inicial', 'Est. Mile', 'Vendas s/ Integr.', 'Mile s/ Integr.', 'Compras', 'Remessa Parcial Não Enviada', 'Estoque', 'Status']
+  const rows = linhas.map(i => [i.productId, i.produto, i.sku, i.inicial, i.atual, i.vendasSemInt, i.mileSemInt, i.compras, i.remessasNaoInt, i.estoqueLogico, i.status])
+  const csv = '﻿' + [headers.map(esc).join(','), ...rows.map(r => r.map(esc).join(','))].join('\r\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `estoque-${new Date().toISOString().slice(0, 10)}.csv`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
 const CSS = `
 .kest-root, .kest-root * { box-sizing: border-box; }
 .kest-root {
@@ -162,6 +179,20 @@ export default function EstoquePage() {
             <input type="checkbox" checked={soBaixo} onChange={e => setSoBaixo(e.target.checked)} />
             <span className="tk" /> Só estoque negativo
           </label>
+          <button
+            onClick={() => baixarEstoque(linhas)}
+            disabled={!linhas.length}
+            title="Baixar planilha (abre no Excel)"
+            style={{
+              marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '7px',
+              padding: '9px 15px', borderRadius: '10px', border: '1px solid #16a34a',
+              background: '#16a34a', color: '#fff', cursor: linhas.length ? 'pointer' : 'not-allowed',
+              opacity: linhas.length ? 1 : 0.5, fontFamily: 'inherit', fontSize: '13px', fontWeight: 700,
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            Baixar Excel
+          </button>
         </div>
 
         {/* Tabela */}
