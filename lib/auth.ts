@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_change_me'
 
 // Cargos válidos do sistema
-export const ROLES = ['admin', 'financeiro', 'consultor', 'operacao', 'user'] as const
+export const ROLES = ['admin', 'financeiro', 'consultor', 'operacao', 'user', 'estoque'] as const
 export type Role = (typeof ROLES)[number]
 export function isRole(v: unknown): v is Role {
   return typeof v === 'string' && (ROLES as readonly string[]).includes(v)
