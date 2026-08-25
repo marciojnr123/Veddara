@@ -323,6 +323,10 @@ export default function ComercialPage() {
       ? (dados?.diario ?? []).map(d => ({ label: `${d.dia.slice(6, 8)}/${d.dia.slice(4, 6)}`, faturamento: d.faturamento, notas: d.notas }))
       : (dados?.mensal ?? []).map(m => ({ label: nomeMes(m.anomes), faturamento: m.faturamento, notas: m.notas }))
   const anualData = dados?.anual ?? []
+  // judicialização por mês (todo o histórico) e pedidos de amostras/reposições
+  const judiData = (dados?.judicializacaoMensal ?? []).map(m => ({ label: nomeMes(m.anomes), pedidos: m.pedidos, quantidade: m.quantidade }))
+  const amostras = dados?.amostrasReposicoes ?? []
+  const totalAmostras = amostras.reduce((s, a) => s + a.quantidade, 0)
   // Em mês único, o card "anual" vira comparação com o mesmo mês do ano passado
   const comp = dados?.compAnoAnterior ?? null
   const eMesUnico = granularidade === 'diario'
@@ -690,6 +694,71 @@ export default function ComercialPage() {
                 ))}
               </tbody>
             </table>
+          )}
+        </div>
+
+        {/* Judicialização ao longo dos meses */}
+        <div className="kcom-card">
+          <div className="kcom-card-hdr">
+            <h3 className="kcom-card-title">Judicialização ao longo dos meses</h3>
+            <span className="kcom-card-note">Pedidos com plano de pagamento JUDICIALIZAÇÃO · histórico completo</span>
+          </div>
+          {!dados ? <div className="kcom-sk" style={{ height: 260 }} />
+            : judiData.length === 0 ? <div className="kcom-empty" style={{ height: 260, display: 'grid', placeItems: 'center' }}>Nenhum pedido judicializado</div>
+            : (
+            <ResponsiveContainer width="100%" height={260}>
+              <AreaChart data={judiData} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="kcom-judi" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#E0602B" stopOpacity={0.32} />
+                    <stop offset="100%" stopColor="#E0602B" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
+                <XAxis dataKey="label" {...axisProps} interval="preserveStartEnd" minTickGap={20} />
+                <YAxis tickFormatter={fmtNum} {...axisProps} width={40} allowDecimals={false} />
+                <Tooltip
+                  contentStyle={tooltipStyle}
+                  formatter={(v, n) => [fmtNum(Number(v)), n === 'pedidos' ? 'Pedidos' : 'Quantidade']}
+                  labelStyle={{ color: 'var(--ink)', fontWeight: 700, marginBottom: 4 }}
+                />
+                <Area type="monotone" dataKey="pedidos" stroke="#E0602B" strokeWidth={2.5} fill="url(#kcom-judi)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Amostras e reposições */}
+        <div className="kcom-card">
+          <div className="kcom-card-hdr">
+            <h3 className="kcom-card-title">Amostras & reposições</h3>
+            <span className="kcom-card-note">Pedidos com plano AMOSTRAS E REPOSIÇÕES{temFiltro ? ' · no período' : ''} · {fmtNum(totalAmostras)} un.</span>
+          </div>
+          {!dados ? <div className="kcom-sk" style={{ height: 320 }} />
+            : amostras.length === 0 ? <div className="kcom-empty">Nenhum pedido de amostra/reposição{temFiltro ? ' no período' : ''}</div>
+            : (
+            <div style={{ maxHeight: 460, overflowY: 'auto' }}>
+              <table className="kcom-tbl">
+                <thead>
+                  <tr>
+                    <th style={{ width: 40 }}>#</th>
+                    <th>Paciente</th>
+                    <th>Produto</th>
+                    <th className="r" style={{ width: 90 }}>Qtd</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {amostras.map((a, i) => (
+                    <tr key={i}>
+                      <td>{i + 1}</td>
+                      <td className="name" title={a.paciente}>{a.paciente}</td>
+                      <td className="name" title={a.produto}>{a.produto}</td>
+                      <td className="r val">{fmtNum(a.quantidade)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
 

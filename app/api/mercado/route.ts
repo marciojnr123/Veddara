@@ -14,6 +14,8 @@ export interface DadosMercado {
     erro: string | null
   }
   recompraMensal: Array<{ anomes: string; recompra: number }>
+  // saldo em consignação por médico = qtd COMPRA CONSIGNADA − qtd VENDA CONSIGNADA
+  consignacaoMedico: Array<{ medico: string; comprou: number; vendeu: number; saldo: number }>
 }
 
 // UUID (fixo no ERP) da condição de pagamento "VENDA CONSIGNADA".
@@ -24,11 +26,14 @@ export interface DadosMercado {
 // Todo o resto é "importada" — assim consignada + importada = faturamento total
 // (Status=100), batendo com a aba Comercial.
 const VENDA_CONSIGNADA_ID = '8D64213D-82F6-4353-A325-CD3CD0F7988D'
+// COMPRA CONSIGNADA = médico leva produtos em consignação (entrada no estoque dele)
+const COMPRA_CONSIGNADA_ID = '924BC710-A3EC-44F3-8973-CB61CC31AD31'
 // Empresa (tenant) Veddara — filtra dados de outras empresas que existem na base
 const EMPRESA_ID = '929577C5-3B2C-459C-973E-C46211B8B251'
 // normaliza UUID (maiúsculo, só hex) pra comparar sem depender de traços/caixa
 const soHex = (v: unknown) => String(v ?? '').toUpperCase().replace(/[^0-9A-F]/g, '')
 const ALVO_CONSIGNADA = soHex(VENDA_CONSIGNADA_ID)
+const ALVO_COMPRA = soHex(COMPRA_CONSIGNADA_ID)
 
 const num = (v: unknown): number => {
   const n = Number(v)
@@ -175,13 +180,42 @@ export async function GET(req: NextRequest) {
       consignado.erro = String(e)
     }
 
+    // ── Saldo em consignação por médico (COMPRA CONSIGNADA − VENDA CONSIGNADA) ──
+    //    NÃO-FATAL: se falhar, o resto da tela continua.
+    const consignacaoMedico: Array<{ medico: string; comprou: number; vendeu: number; saldo: number }> = []
+    try {
+      const qCM = await agentQuery(`
+        SELECT c.Name AS medico, io.PaymentTermId AS cond, SUM(ii.Quantity) AS qtd
+        FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
+        JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
+        JOIN veddara.EZ_VEDDARA_CUSTOMER_CUSTOMER c ON io.CustomerId = c.Id
+        WHERE io.Status IN (1, 100) AND io.SystemCustomerId = '${EMPRESA_ID}' AND ii.Status = 1 AND ii.ItemCode >= 1
+          AND io.PaymentTermId IS NOT NULL ${fData}
+        GROUP BY c.Name, io.PaymentTermId`, 5000)
+      const map: Record<string, { comprou: number; vendeu: number }> = {}
+      for (const r of qCM.rows) {
+        const hex = soHex(r[1])
+        if (hex !== ALVO_COMPRA && hex !== ALVO_CONSIGNADA) continue
+        const medico = String(r[0] ?? '').trim() || '(sem nome)'
+        const qtd = num(r[2])
+        if (!map[medico]) map[medico] = { comprou: 0, vendeu: 0 }
+        if (hex === ALVO_COMPRA) map[medico].comprou += qtd
+        else map[medico].vendeu += qtd
+      }
+      for (const [medico, v] of Object.entries(map)) {
+        const saldo = v.comprou - v.vendeu
+        if (saldo > 0) consignacaoMedico.push({ medico, comprou: v.comprou, vendeu: v.vendeu, saldo })
+      }
+      consignacaoMedico.sort((a, b) => b.saldo - a.saldo)
+    } catch { /* não-fatal */ }
+
     // ── Recompra mensal ──
     const recompraMensal = qRecompra.rows
       .map(r => ({ anomes: String(r[0] ?? ''), recompra: num(r[1]) }))
       .filter(x => x.anomes)
       .sort((a, b) => a.anomes.localeCompare(b.anomes))
 
-    const dados: DadosMercado = { periodo: { inicio, fim }, vendasPorEstado, semUf, consignado, recompraMensal }
+    const dados: DadosMercado = { periodo: { inicio, fim }, vendasPorEstado, semUf, consignado, recompraMensal, consignacaoMedico }
     return NextResponse.json(dados)
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 })

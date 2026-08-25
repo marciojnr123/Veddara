@@ -27,7 +27,17 @@ export interface DadosComercial {
   novosClientes: Array<{ ano: string; qtd: number }>
   // comparação do mês selecionado vs o mesmo mês no ano anterior (só quando 1 mês)
   compAnoAnterior: { labelAtual: string; labelAnterior: string; fatAtual: number; fatAnterior: number } | null
+  // pedidos com plano de pagamento AMOSTRAS E REPOSIÇÕES (paciente, produto, qtd)
+  amostrasReposicoes: Array<{ paciente: string; produto: string; quantidade: number }>
+  // judicialização por mês (todo o histórico)
+  judicializacaoMensal: Array<{ anomes: string; pedidos: number; quantidade: number }>
 }
+
+// PaymentTermId (UUID) das condições de pagamento — normalizado (só hex maiúsculo).
+// A tabela de tradução não está na base de análise (ver memória consignado-aguardando-tabela).
+const PT_AMOSTRAS = 'FA2D0BB736BC4E23BB62F3297B9AA051'   // AMOSTRAS E REPOSIÇÕES
+const PT_JUDICIAL = '2C70CBA5CC0A4DDCAAACD8F15E830D2F'   // JUDICIALIZAÇÃO
+const HEXPT = (col: string) => `UPPER(REPLACE(CAST(${col} AS VARCHAR(64)),'-',''))`
 
 // Faturamento igual ao BI: nota Status 1 ou 100 (inclui faturadas com NF pendente/999999),
 // item Status 1 e ItemCode >= 1 (o item Status=1 descarta linhas de rascunho, evitando dobrar).
@@ -217,10 +227,36 @@ export async function GET(req: NextRequest) {
         WHERE io.${ST} ${fEmp} ${ITEMF} AND io.DateInvoiceOrder >= '${prevIni}' AND io.DateInvoiceOrder < '${prevFimM1}'`, 10))
     }
 
+    // Pedidos com plano AMOSTRAS E REPOSIÇÕES (respeita o filtro de período)
+    const idxAmostras = queries.length
+    queries.push(agentQuery(`
+      SELECT c.Name AS paciente, ii.Description AS produto, SUM(ii.Quantity) AS qtd
+      FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
+      JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
+      JOIN veddara.EZ_VEDDARA_CUSTOMER_CUSTOMER c ON io.CustomerId = c.Id
+      WHERE io.${ST} ${fEmp} ${ITEMF} ${fInvoice}
+        AND ${HEXPT('io.PaymentTermId')} = '${PT_AMOSTRAS}'
+      GROUP BY c.Name, ii.Description
+      ORDER BY qtd DESC`, 3000))
+
+    // Judicialização por mês — todo o histórico (tendência ao longo dos meses)
+    const idxJudi = queries.length
+    queries.push(agentQuery(`
+      SELECT YEAR(io.DateInvoiceOrder)*100 + MONTH(io.DateInvoiceOrder) AS anomes,
+             COUNT(DISTINCT io.Id) AS pedidos, SUM(ii.Quantity) AS qtd
+      FROM veddara.EZ_VEDDARA_INVOICE_ORDER io
+      JOIN veddara.EZ_VEDDARA_INVOICE_ITEM ii ON io.Id = ii.OrderId
+      WHERE io.${ST} ${fEmp} ${ITEMF}
+        AND ${HEXPT('io.PaymentTermId')} = '${PT_JUDICIAL}'
+      GROUP BY YEAR(io.DateInvoiceOrder)*100 + MONTH(io.DateInvoiceOrder)
+      ORDER BY anomes`, 500))
+
     const res = await Promise.all(queries)
     const [qPeriodo, qAnual, qMensal, qClientes, qVendedores, qProdutos, qFunil, qAtivos, qNovos, qPrev] = res
     const qDiario = idxDiario >= 0 ? res[idxDiario] : null
     const qComp = idxComp >= 0 ? res[idxComp] : null
+    const qAmostras = res[idxAmostras]
+    const qJudi = res[idxJudi]
 
     const faturamentoPeriodo = num(qPeriodo.rows[0]?.[0])
     const notasPeriodo = num(qPeriodo.rows[0]?.[1])
@@ -293,6 +329,12 @@ export async function GET(req: NextRequest) {
       funil: { convertidos, perdidos, abertos, valorPipeline },
       novosClientes: qNovos.rows.map(r => ({ ano: str(r[0]), qtd: num(r[1]) })),
       compAnoAnterior,
+      amostrasReposicoes: qAmostras.rows
+        .map(r => ({ paciente: str(r[0]) || '(sem nome)', produto: str(r[1]) || '—', quantidade: num(r[2]) }))
+        .filter(x => x.quantidade > 0),
+      judicializacaoMensal: qJudi.rows
+        .map(r => ({ anomes: str(r[0]), pedidos: num(r[1]), quantidade: num(r[2]) }))
+        .filter(x => x.anomes),
     }
 
     return NextResponse.json(dados)

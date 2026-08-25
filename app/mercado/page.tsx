@@ -235,6 +235,14 @@ export default function MercadoPage() {
   // recompra mensal (dados reais)
   const recompraData = (dados?.recompraMensal ?? []).map(m => ({ label: nomeMes(m.anomes), clientes: m.recompra }))
 
+  // consignação por médico (compra consignada − venda consignada)
+  const consignacaoMedico = dados?.consignacaoMedico ?? []
+  const consignacaoData = consignacaoMedico.slice(0, 12).map(m => ({
+    medico: m.medico.length > 24 ? m.medico.slice(0, 24) + '…' : m.medico,
+    saldo: m.saldo,
+  }))
+  const totalEmConsignacao = consignacaoMedico.reduce((s, m) => s + m.saldo, 0)
+
   const temFiltro = !!(inicio && fim)
   const labelPeriodo = temFiltro ? `${fmtDataBR(inicio)} – ${fmtDataBR(fim)}` : 'Histórico completo'
 
@@ -440,6 +448,29 @@ export default function MercadoPage() {
                 <Tooltip contentStyle={tooltipStyle} formatter={(v) => [fmtNum(Number(v)), 'Clientes em recompra']} labelStyle={{ color: 'var(--ink)', fontWeight: 700, marginBottom: 4 }} />
                 <Area type="monotone" dataKey="clientes" stroke="#2563EB" strokeWidth={2.5} fill="url(#kmkt-recompra)" />
               </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Consignação por médico (compra consignada − venda consignada) */}
+        <div className="kmkt-card">
+          <div className="kmkt-card-hdr">
+            <div>
+              <h3 className="kmkt-card-title">Consignação por médico</h3>
+              <span className="kmkt-card-note">Saldo em consignação (compra − venda consignada) · {fmtNum(totalEmConsignacao)} un. no total</span>
+            </div>
+          </div>
+          {!dados ? <div className="kmkt-sk" style={{ height: 300 }} />
+            : consignacaoData.length === 0 ? <div className="kmkt-empty" style={{ height: 300, display: 'grid', placeItems: 'center' }}>Nenhum médico com saldo em consignação</div>
+            : (
+            <ResponsiveContainer width="100%" height={Math.max(240, consignacaoData.length * 32 + 40)}>
+              <BarChart data={consignacaoData} layout="vertical" margin={{ top: 8, right: 28, left: 8, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" horizontal={false} />
+                <XAxis type="number" tickFormatter={fmtNum} {...axisProps} />
+                <YAxis type="category" dataKey="medico" {...axisProps} width={170} />
+                <Tooltip contentStyle={tooltipStyle} formatter={(v) => [`${fmtNum(Number(v))} un.`, 'Em consignação']} cursor={{ fill: 'rgba(37,99,235,.06)' }} />
+                <Bar dataKey="saldo" fill="#22C3DD" radius={[0, 6, 6, 0]} maxBarSize={22} />
+              </BarChart>
             </ResponsiveContainer>
           )}
         </div>
