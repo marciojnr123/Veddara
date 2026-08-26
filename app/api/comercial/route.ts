@@ -35,7 +35,7 @@ export interface DadosComercial {
 
 // PaymentTermId (UUID) das condições de pagamento — normalizado (só hex maiúsculo).
 // A tabela de tradução não está na base de análise (ver memória consignado-aguardando-tabela).
-const PT_AMOSTRAS = 'FA2D0BB736BC4E23BB62F3297B9AA051'   // AMOSTRAS E REPOSIÇÕES
+const PT_AMOSTRAS = '8865622628AF4763B400ACBBD7BE0E0F'   // AMOSTRAS E REPOSIÇÕES (notas simbólicas R$ 0,01)
 const PT_JUDICIAL = '2C70CBA5CC0A4DDCAAACD8F15E830D2F'   // JUDICIALIZAÇÃO
 const HEXPT = (col: string) => `UPPER(REPLACE(CAST(${col} AS VARCHAR(64)),'-',''))`
 
