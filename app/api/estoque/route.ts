@@ -9,6 +9,7 @@ export interface EstoqueItem {
   produto: string
   marca: string
   atual: number
+  estTristar: number
   reservado: number
   disponivel: number
   minimo: number
@@ -55,6 +56,7 @@ export async function GET() {
       produto: (r.nome as string) ?? '',
       marca: (r.marca as string) ?? '',
       atual: n(r.est_mile),
+      estTristar: n(r.est_tristar),
       reservado: 0,
       disponivel: 0,
       minimo: 0,

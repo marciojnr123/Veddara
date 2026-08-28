@@ -206,6 +206,7 @@ export default function EstoquePage() {
                   <th className="l">SKU</th>
                   <th>Est. inicial</th>
                   <th>Est. Mile</th>
+                  <th>Est. TriStar</th>
                   <th>Vendas s/ integr.</th>
                   <th>Mile s/ integr.</th>
                   <th>Compras</th>
@@ -224,6 +225,7 @@ export default function EstoquePage() {
                       <td className="sku">{i.sku || '—'}</td>
                       <td>{i.inicial || '—'}</td>
                       <td className="atual">{fmtNum(i.atual)}</td>
+                      <td className="atual">{i.estTristar ? fmtNum(i.estTristar) : '—'}</td>
                       <td style={{ color: i.vendasSemInt > 0 ? '#ea580c' : '#94a3b8', fontWeight: i.vendasSemInt > 0 ? 700 : 400 }}>{i.vendasSemInt ? fmtNum(i.vendasSemInt) : '—'}</td>
                       <td style={{ color: i.mileSemInt > 0 ? '#ea580c' : '#94a3b8', fontWeight: i.mileSemInt > 0 ? 700 : 400 }}>{i.mileSemInt ? fmtNum(i.mileSemInt) : '—'}</td>
                       <td style={{ color: i.compras > 0 ? '#16a34a' : '#94a3b8', fontWeight: i.compras > 0 ? 700 : 400 }}>{i.compras ? fmtNum(i.compras) : '—'}</td>
@@ -233,7 +235,7 @@ export default function EstoquePage() {
                     </tr>
                   )
                 })}
-                {linhas.length === 0 && <tr><td colSpan={11}><div className="kest-empty">Nenhum item com esses filtros.</div></td></tr>}
+                {linhas.length === 0 && <tr><td colSpan={12}><div className="kest-empty">Nenhum item com esses filtros.</div></td></tr>}
               </tbody>
             </table>
           </div>
