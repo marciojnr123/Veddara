@@ -66,12 +66,15 @@ const CSS = `
 /* Funil de etapas */
 .kctl-funnel { display: grid; grid-template-columns: repeat(8, 1fr); gap: 10px; }
 @media (max-width: 1100px) { .kctl-funnel { grid-template-columns: repeat(4, 1fr); } }
-.kctl-stage { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 12px 12px 13px; box-shadow: 0 4px 16px rgba(15,23,42,.04); display: flex; flex-direction: column; gap: 6px; min-height: 84px; }
+.kctl-stage { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 12px 12px 13px; box-shadow: 0 4px 16px rgba(15,23,42,.04); display: flex; flex-direction: column; gap: 6px; min-height: 84px; cursor: pointer; transition: border-color .12s, box-shadow .12s, transform .08s; text-align: left; }
+.kctl-stage:hover { border-color: #bfdbfe; box-shadow: 0 6px 20px rgba(37,99,235,.12); }
+.kctl-stage:active { transform: scale(.98); }
 .kctl-stage-n { font-size: 24px; font-weight: 800; letter-spacing: -.02em; color: #1e293b; line-height: 1; }
 .kctl-stage-l { font-size: 11px; font-weight: 600; color: #64748b; line-height: 1.25; }
 .kctl-stage.alerta { background: #fff7ed; border-color: #fed7aa; }
 .kctl-stage.alerta .kctl-stage-n { color: var(--warn); }
 .kctl-stage.alerta .kctl-stage-l { color: #b45309; }
+.kctl-stage.ativa { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(37,99,235,.25); }
 
 .kctl-filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .kctl-search { flex: 1; min-width: 220px; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 9px 14px; font-size: 13.5px; font-family: inherit; color: #1e293b; outline: none; }
@@ -120,6 +123,7 @@ export default function ControlePage() {
   const [busca, setBusca] = useState('')
   const [transp, setTransp] = useState<'' | 'MILE' | 'TRISTAR'>('')
   const [crit, setCrit] = useState<'' | ControleItem['criticidade']>('')
+  const [etapa, setEtapa] = useState<number | null>(null)
   const [sort, setSort] = useState<{ campo: SortCampo; dir: 'asc' | 'desc' }>({ campo: null, dir: 'desc' })
 
   const carregar = useCallback(() => {
@@ -148,6 +152,7 @@ export default function ControlePage() {
     const filtradas = itens.filter(i => {
       if (transp && i.transportadora !== transp) return false
       if (crit && i.criticidade !== crit) return false
+      if (etapa !== null && i.etapaNum !== etapa) return false
       if (q && !(`${i.cliente} ${i.invoice} ${i.rastreio}`.toLowerCase().includes(q))) return false
       return true
     })
@@ -156,7 +161,7 @@ export default function ControlePage() {
     const campo = sort.campo
     const mul = sort.dir === 'asc' ? 1 : -1
     return [...filtradas].sort((a, b) => (a[campo] - b[campo]) * mul)
-  }, [itens, busca, transp, crit, sort])
+  }, [itens, busca, transp, crit, etapa, sort])
 
   function toggleSort(campo: Exclude<SortCampo, null>) {
     setSort(s => s.campo === campo ? { campo, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { campo, dir: 'desc' })
@@ -188,13 +193,19 @@ export default function ControlePage() {
           <div className="kctl-kpi aten"><div className="kctl-kpi-lbl">Atenção</div><div className="kctl-kpi-val">{fmtNum(totalAtencao)}</div></div>
         </div>
 
-        {/* Faixa-resumo (funil por etapa) */}
+        {/* Faixa-resumo (funil por etapa) — clicar filtra por aquela etapa */}
         <div className="kctl-funnel">
           {ETAPAS.map(e => (
-            <div key={e.num} className={`kctl-stage ${e.alerta ? 'alerta' : ''}`}>
+            <button
+              key={e.num}
+              type="button"
+              className={`kctl-stage ${e.alerta ? 'alerta' : ''} ${etapa === e.num ? 'ativa' : ''}`}
+              onClick={() => setEtapa(etapa === e.num ? null : e.num)}
+              title={etapa === e.num ? 'Clique para remover o filtro' : `Filtrar por: ${e.label}`}
+            >
               <div className="kctl-stage-n">{fmtNum(contagemEtapa[e.num] ?? 0)}</div>
               <div className="kctl-stage-l">{e.label}</div>
-            </div>
+            </button>
           ))}
         </div>
 
@@ -210,6 +221,10 @@ export default function ControlePage() {
             <option value="critico">Crítico</option>
             <option value="atencao">Atenção</option>
             <option value="ok">OK</option>
+          </select>
+          <select className="kctl-select" value={etapa === null ? '' : String(etapa)} onChange={e => setEtapa(e.target.value === '' ? null : Number(e.target.value))}>
+            <option value="">Todas as etapas</option>
+            {ETAPAS.map(e => <option key={e.num} value={e.num}>{e.label}</option>)}
           </select>
           <input className="kctl-search" placeholder="🔍 Buscar cliente, invoice ou rastreio…" value={busca} onChange={e => setBusca(e.target.value)} />
         </div>
