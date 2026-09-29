@@ -18,6 +18,29 @@ function fmtData(iso: string): string {
   return `${dd}/${mm}/${aa}`
 }
 
+const CRIT_LABEL: Record<'critico' | 'atencao' | 'ok', string> = { critico: 'Crítico', atencao: 'Atenção', ok: 'OK' }
+
+// Baixa a tabela (respeitando os filtros aplicados) como CSV — abre direto no Excel.
+function baixarControle(linhas: ControleItem[]) {
+  const esc = (v: unknown) => { const s = String(v ?? ''); return /[",\n\r;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s }
+  const headers = ['Transportadora', 'Rastreio', 'Invoice', 'Cliente', 'Telefone', 'Data envio', 'Etapa', 'Última movimentação', 'Dias desde envio', 'Dias parado', 'Criticidade']
+  const rows = linhas.map(i => [
+    i.transportadora, i.rastreio, i.invoice, i.cliente, i.telefone,
+    fmtData(i.dataEnvio), i.etapa, fmtData(i.ultimaMovimentacao),
+    i.diasDesdeEnvio, i.diasParado, CRIT_LABEL[i.criticidade],
+  ])
+  const csv = '﻿' + [headers.map(esc).join(','), ...rows.map(r => r.map(esc).join(','))].join('\r\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `entregas-${new Date().toISOString().slice(0, 10)}.csv`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
 // Faixa-resumo (funil): etapa_num → rótulo, na ordem de exibição pedida.
 // etapa_num 0 = "Sem rastreio" (registrada na transportadora, sem evento ainda).
 const ETAPAS: Array<{ num: number; label: string; alerta?: boolean }> = [
@@ -30,8 +53,6 @@ const ETAPAS: Array<{ num: number; label: string; alerta?: boolean }> = [
   { num: 7, label: 'Ocorrência', alerta: true },
   { num: 0, label: 'Sem rastreio' },
 ]
-
-const CRIT_LABEL: Record<ControleItem['criticidade'], string> = { critico: 'Crítico', atencao: 'Atenção', ok: 'OK' }
 
 const CSS = `
 .kctl-root, .kctl-root * { box-sizing: border-box; }
@@ -227,6 +248,20 @@ export default function ControlePage() {
             {ETAPAS.map(e => <option key={e.num} value={e.num}>{e.label}</option>)}
           </select>
           <input className="kctl-search" placeholder="🔍 Buscar cliente, invoice ou rastreio…" value={busca} onChange={e => setBusca(e.target.value)} />
+          <button
+            onClick={() => baixarControle(linhas)}
+            disabled={!linhas.length}
+            title="Baixar planilha (abre no Excel)"
+            style={{
+              marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '7px',
+              padding: '9px 15px', borderRadius: '10px', border: '1px solid #16a34a',
+              background: '#16a34a', color: '#fff', cursor: linhas.length ? 'pointer' : 'not-allowed',
+              opacity: linhas.length ? 1 : 0.5, fontFamily: 'inherit', fontSize: '13px', fontWeight: 700,
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            Baixar Excel
+          </button>
         </div>
 
         {/* Tabela */}
@@ -239,6 +274,7 @@ export default function ControlePage() {
                   <th>Rastreio</th>
                   <th>Invoice</th>
                   <th>Cliente</th>
+                  <th>Telefone</th>
                   <th>Data envio</th>
                   <th>Etapa atual</th>
                   <th>Última mov.</th>
@@ -256,6 +292,7 @@ export default function ControlePage() {
                       <td className="mono">{i.rastreio || '—'}</td>
                       <td className="mono">{i.invoice || '—'}</td>
                       <td className="cli">{i.cliente || '—'}</td>
+                      <td className="mono">{i.telefone || '—'}</td>
                       <td className="mono">{fmtData(i.dataEnvio)}</td>
                       <td>{i.etapa || '—'}</td>
                       <td className="mono">{fmtData(i.ultimaMovimentacao)}</td>
@@ -265,7 +302,7 @@ export default function ControlePage() {
                     </tr>
                   )
                 })}
-                {linhas.length === 0 && <tr><td colSpan={10}><div className="kctl-empty">Nenhuma remessa com esses filtros.</div></td></tr>}
+                {linhas.length === 0 && <tr><td colSpan={11}><div className="kctl-empty">Nenhuma remessa com esses filtros.</div></td></tr>}
               </tbody>
             </table>
           </div>
