@@ -28,7 +28,6 @@ function rastreioValido(v: string): boolean {
 
 // Chave estável por linha (seleção + controle de "baixado")
 const keyOf = (i: ControleItem) => `${i.invoice}|${i.rastreio}`
-const LS_BAIXADOS = 'kctl-baixados'
 
 interface PreviewRastreio {
   invoice: string
@@ -247,20 +246,36 @@ export default function ControlePage() {
   const [sort, setSort] = useState<{ campo: SortCampo; dir: 'asc' | 'desc' }>({ campo: null, dir: 'desc' })
   const [sucesso, setSucesso] = useState('')
 
-  // Seleção de linhas (para baixar) + controle de "Baixado" (persistido no navegador)
+  // Seleção de linhas (para baixar) + controle de "Baixado" — COMPARTILHADO entre
+  // todos os usuários (guardado no banco via /api/controle/baixado).
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
   const [baixados, setBaixados] = useState<Set<string>>(new Set())
-  useEffect(() => {
-    try { const raw = localStorage.getItem(LS_BAIXADOS); if (raw) setBaixados(new Set(JSON.parse(raw) as string[])) } catch { /* ignore */ }
+
+  const carregarBaixados = useCallback(() => {
+    fetch('/api/controle/baixado')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d?.chaves) setBaixados(new Set(d.chaves as string[])) })
+      .catch(() => { /* ignore */ })
   }, [])
-  function salvarBaixados(s: Set<string>) {
-    try { localStorage.setItem(LS_BAIXADOS, JSON.stringify([...s])) } catch { /* ignore */ }
+  useEffect(() => { carregarBaixados() }, [carregarBaixados])
+
+  // Grava no banco (não bloqueia a UI; o estado local já foi atualizado de forma otimista)
+  async function persistirBaixado(chaves: string[], baixado: boolean) {
+    try {
+      await fetch('/api/controle/baixado', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chaves, baixado }),
+      })
+    } catch { /* ignore */ }
   }
+
   function toggleSel(k: string) {
     setSelecionados(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n })
   }
   function toggleBaixado(k: string) {
-    setBaixados(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); salvarBaixados(n); return n })
+    const novo = !baixados.has(k)
+    setBaixados(prev => { const n = new Set(prev); novo ? n.add(k) : n.delete(k); return n })
+    persistirBaixado([k], novo)
   }
 
   // Modal "Substituir rastreio"
@@ -368,8 +383,10 @@ export default function ControlePage() {
     const sel = (itens ?? []).filter(i => selecionados.has(keyOf(i)))
     if (!sel.length) return
     await baixarControle(sel)
-    // Marca automaticamente tudo que foi baixado como "Baixado = SIM"…
-    setBaixados(prev => { const n = new Set(prev); sel.forEach(i => n.add(keyOf(i))); salvarBaixados(n); return n })
+    // Marca automaticamente tudo que foi baixado como "Baixado = SIM" (no banco, p/ todos)…
+    const chaves = sel.map(keyOf)
+    setBaixados(prev => { const n = new Set(prev); chaves.forEach(k => n.add(k)); return n })
+    persistirBaixado(chaves, true)
     // …e limpa a seleção, deixando claro que o lote já foi baixado.
     setSelecionados(new Set())
   }
@@ -388,7 +405,7 @@ export default function ControlePage() {
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"/></svg>
               Substituir rastreio
             </button>
-            <button className="kctl-refresh" title="Atualizar" aria-label="Atualizar" onClick={carregar}>
+            <button className="kctl-refresh" title="Atualizar" aria-label="Atualizar" onClick={() => { carregar(); carregarBaixados() }}>
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
             </button>
           </div>
