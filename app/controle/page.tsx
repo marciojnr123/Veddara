@@ -39,25 +39,30 @@ interface PreviewRastreio {
   transportadora_nova: string
 }
 
-// Baixa a tabela (respeitando os filtros aplicados) como CSV — abre direto no Excel.
-function baixarControle(linhas: ControleItem[]) {
-  const esc = (v: unknown) => { const s = String(v ?? ''); return /[",\n\r;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s }
-  const headers = ['Transportadora', 'Rastreio', 'Invoice', 'Cliente', 'Telefone', 'Data envio', 'Etapa', 'Última movimentação', 'Dias desde envio', 'Criticidade']
-  const rows = linhas.map(i => [
-    i.transportadora, i.rastreio, i.invoice, i.cliente, i.telefone,
-    fmtData(i.dataEnvio), i.etapa, fmtData(i.ultimaMovimentacao),
-    i.diasDesdeEnvio, CRIT_LABEL[i.criticidade],
-  ])
-  const csv = '﻿' + [headers.map(esc).join(','), ...rows.map(r => r.map(esc).join(','))].join('\r\n')
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `entregas-${new Date().toISOString().slice(0, 10)}.csv`
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
+// Baixa as linhas informadas como planilha Excel (.xlsx) — abre direto no Excel.
+// A lib xlsx é carregada só aqui (import dinâmico) pra não pesar o carregamento da página.
+async function baixarControle(linhas: ControleItem[]) {
+  const XLSX = await import('xlsx')
+  const dados = linhas.map(i => ({
+    'Transportadora': i.transportadora,
+    'Rastreio': i.rastreio,
+    'Invoice': i.invoice,
+    'Cliente': i.cliente,
+    'Telefone': i.telefone,
+    'Data envio': fmtData(i.dataEnvio),
+    'Etapa': i.etapa,
+    'Última movimentação': fmtData(i.ultimaMovimentacao),
+    'Dias desde envio': i.diasDesdeEnvio,
+    'Criticidade': CRIT_LABEL[i.criticidade],
+  }))
+  const ws = XLSX.utils.json_to_sheet(dados)
+  ws['!cols'] = [
+    { wch: 13 }, { wch: 20 }, { wch: 10 }, { wch: 28 }, { wch: 16 },
+    { wch: 11 }, { wch: 22 }, { wch: 18 }, { wch: 10 }, { wch: 12 },
+  ]
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Controle Rastreio')
+  XLSX.writeFile(wb, `controle-rastreio-${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
 
 // Faixa-resumo (funil): etapa_num → rótulo, na ordem de exibição pedida.
@@ -219,6 +224,7 @@ export default function ControlePage() {
   const [transp, setTransp] = useState<'' | 'MILE' | 'TRISTAR'>('')
   const [crit, setCrit] = useState<'' | ControleItem['criticidade']>('')
   const [etapa, setEtapa] = useState<number | null>(null)
+  const [baixadoFiltro, setBaixadoFiltro] = useState<'' | 'sim' | 'nao'>('')
   const [sort, setSort] = useState<{ campo: SortCampo; dir: 'asc' | 'desc' }>({ campo: null, dir: 'desc' })
   const [sucesso, setSucesso] = useState('')
 
@@ -309,6 +315,8 @@ export default function ControlePage() {
       if (transp && i.transportadora !== transp) return false
       if (crit && i.criticidade !== crit) return false
       if (etapa !== null && i.etapaNum !== etapa) return false
+      if (baixadoFiltro === 'sim' && !baixados.has(keyOf(i))) return false
+      if (baixadoFiltro === 'nao' && baixados.has(keyOf(i))) return false
       if (q && !(`${i.cliente} ${i.invoice} ${i.rastreio}`.toLowerCase().includes(q))) return false
       return true
     })
@@ -317,7 +325,7 @@ export default function ControlePage() {
     const campo = sort.campo
     const mul = sort.dir === 'asc' ? 1 : -1
     return [...filtradas].sort((a, b) => (a[campo] - b[campo]) * mul)
-  }, [itens, busca, transp, crit, etapa, sort])
+  }, [itens, busca, transp, crit, etapa, baixadoFiltro, baixados, sort])
 
   function toggleSort(campo: Exclude<SortCampo, null>) {
     setSort(s => s.campo === campo ? { campo, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { campo, dir: 'desc' })
@@ -337,10 +345,10 @@ export default function ControlePage() {
   const selCount = useMemo(() => (itens ?? []).filter(i => selecionados.has(keyOf(i))).length, [itens, selecionados])
 
   // Baixa só as linhas selecionadas e marca cada uma como "Baixado"
-  function baixarSelecionados() {
+  async function baixarSelecionados() {
     const sel = (itens ?? []).filter(i => selecionados.has(keyOf(i)))
     if (!sel.length) return
-    baixarControle(sel)
+    await baixarControle(sel)
     setBaixados(prev => { const n = new Set(prev); sel.forEach(i => n.add(keyOf(i))); salvarBaixados(n); return n })
   }
 
@@ -406,6 +414,11 @@ export default function ControlePage() {
           <select className="kctl-select" value={etapa === null ? '' : String(etapa)} onChange={e => setEtapa(e.target.value === '' ? null : Number(e.target.value))}>
             <option value="">Todas as etapas</option>
             {ETAPAS.map(e => <option key={e.num} value={e.num}>{e.label}</option>)}
+          </select>
+          <select className="kctl-select" value={baixadoFiltro} onChange={e => setBaixadoFiltro(e.target.value as '' | 'sim' | 'nao')}>
+            <option value="">Baixado: todos</option>
+            <option value="sim">Baixados</option>
+            <option value="nao">Não baixados</option>
           </select>
           <input className="kctl-search" placeholder="🔍 Buscar cliente, invoice ou rastreio…" value={busca} onChange={e => setBusca(e.target.value)} />
           <button
