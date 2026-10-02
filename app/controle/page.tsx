@@ -62,14 +62,16 @@ function baixarControle(linhas: ControleItem[]) {
 
 // Faixa-resumo (funil): etapa_num → rótulo, na ordem de exibição pedida.
 // etapa_num 0 = "Sem rastreio" (registrada na transportadora, sem evento ainda).
-const ETAPAS: Array<{ num: number; label: string; alerta?: boolean }> = [
+// 9 (Entregue) e 10 (Cancelada) não aparecem no controle.
+const ETAPAS: Array<{ num: number; label: string; tom?: 'anvisa' | 'sefaz' | 'alerta' }> = [
   { num: 1, label: 'Criado' },
   { num: 2, label: 'Processado no armazém' },
   { num: 3, label: 'Trânsito internacional' },
-  { num: 4, label: 'Alfândega/ANVISA' },
-  { num: 5, label: 'Base/transferência' },
-  { num: 6, label: 'Em rota de entrega' },
-  { num: 7, label: 'Ocorrência', alerta: true },
+  { num: 4, label: 'ANVISA', tom: 'anvisa' },
+  { num: 5, label: 'SEFAZ', tom: 'sefaz' },
+  { num: 6, label: 'Base/transferência' },
+  { num: 7, label: 'Em rota de entrega' },
+  { num: 8, label: 'Ocorrência', tom: 'alerta' },
   { num: 0, label: 'Sem rastreio' },
 ]
 
@@ -104,16 +106,24 @@ const CSS = `
 .kctl-kpi.aten .kctl-kpi-lbl, .kctl-kpi.aten .kctl-kpi-val { color: var(--warn); }
 
 /* Funil de etapas */
-.kctl-funnel { display: grid; grid-template-columns: repeat(8, 1fr); gap: 10px; }
-@media (max-width: 1100px) { .kctl-funnel { grid-template-columns: repeat(4, 1fr); } }
+.kctl-funnel { display: grid; grid-template-columns: repeat(9, 1fr); gap: 10px; }
+@media (max-width: 1280px) { .kctl-funnel { grid-template-columns: repeat(5, 1fr); } }
+@media (max-width: 760px) { .kctl-funnel { grid-template-columns: repeat(3, 1fr); } }
 .kctl-stage { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 12px 12px 13px; box-shadow: 0 4px 16px rgba(15,23,42,.04); display: flex; flex-direction: column; gap: 6px; min-height: 84px; cursor: pointer; transition: border-color .12s, box-shadow .12s, transform .08s; text-align: left; }
 .kctl-stage:hover { border-color: #bfdbfe; box-shadow: 0 6px 20px rgba(37,99,235,.12); }
 .kctl-stage:active { transform: scale(.98); }
 .kctl-stage-n { font-size: 24px; font-weight: 800; letter-spacing: -.02em; color: #1e293b; line-height: 1; }
 .kctl-stage-l { font-size: 11px; font-weight: 600; color: #64748b; line-height: 1.25; }
-.kctl-stage.alerta { background: #fff7ed; border-color: #fed7aa; }
-.kctl-stage.alerta .kctl-stage-n { color: var(--warn); }
-.kctl-stage.alerta .kctl-stage-l { color: #b45309; }
+/* ANVISA (roxo) e SEFAZ (ciano) — gargalos separados — e Ocorrência (âmbar) */
+.kctl-stage.tom-anvisa { background: #f5f3ff; border-color: #ddd6fe; }
+.kctl-stage.tom-anvisa .kctl-stage-n { color: #7c3aed; }
+.kctl-stage.tom-anvisa .kctl-stage-l { color: #6d28d9; }
+.kctl-stage.tom-sefaz { background: #ecfeff; border-color: #a5f3fc; }
+.kctl-stage.tom-sefaz .kctl-stage-n { color: #0891b2; }
+.kctl-stage.tom-sefaz .kctl-stage-l { color: #0e7490; }
+.kctl-stage.tom-alerta { background: #fff7ed; border-color: #fed7aa; }
+.kctl-stage.tom-alerta .kctl-stage-n { color: var(--warn); }
+.kctl-stage.tom-alerta .kctl-stage-l { color: #b45309; }
 .kctl-stage.ativa { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(37,99,235,.25); }
 
 .kctl-filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -370,7 +380,7 @@ export default function ControlePage() {
             <button
               key={e.num}
               type="button"
-              className={`kctl-stage ${e.alerta ? 'alerta' : ''} ${etapa === e.num ? 'ativa' : ''}`}
+              className={`kctl-stage ${e.tom ? 'tom-' + e.tom : ''} ${etapa === e.num ? 'ativa' : ''}`}
               onClick={() => setEtapa(etapa === e.num ? null : e.num)}
               title={etapa === e.num ? 'Clique para remover o filtro' : `Filtrar por: ${e.label}`}
             >

@@ -12,7 +12,7 @@ export interface ControleItem {
   cliente: string
   telefone: string
   dataEnvio: string            // ISO
-  etapaNum: number             // 0 a 7
+  etapaNum: number             // 0 a 10 (0=sem rastreio; 9=entregue e 10=cancelada não aparecem no controle)
   etapa: string                // nome da etapa
   codigoOriginal: string
   ultimaMovimentacao: string   // ISO
