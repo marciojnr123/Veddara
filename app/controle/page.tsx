@@ -26,6 +26,10 @@ function rastreioValido(v: string): boolean {
   return /^MIE\d+$/.test(up) || /^TR\d+BR$/.test(up)
 }
 
+// Chave estável por linha (seleção + controle de "baixado")
+const keyOf = (i: ControleItem) => `${i.invoice}|${i.rastreio}`
+const LS_BAIXADOS = 'kctl-baixados'
+
 interface PreviewRastreio {
   invoice: string
   cliente: string
@@ -38,11 +42,11 @@ interface PreviewRastreio {
 // Baixa a tabela (respeitando os filtros aplicados) como CSV — abre direto no Excel.
 function baixarControle(linhas: ControleItem[]) {
   const esc = (v: unknown) => { const s = String(v ?? ''); return /[",\n\r;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s }
-  const headers = ['Transportadora', 'Rastreio', 'Invoice', 'Cliente', 'Telefone', 'Data envio', 'Etapa', 'Última movimentação', 'Dias desde envio', 'Dias parado', 'Criticidade']
+  const headers = ['Transportadora', 'Rastreio', 'Invoice', 'Cliente', 'Telefone', 'Data envio', 'Etapa', 'Última movimentação', 'Dias desde envio', 'Criticidade']
   const rows = linhas.map(i => [
     i.transportadora, i.rastreio, i.invoice, i.cliente, i.telefone,
     fmtData(i.dataEnvio), i.etapa, fmtData(i.ultimaMovimentacao),
-    i.diasDesdeEnvio, i.diasParado, CRIT_LABEL[i.criticidade],
+    i.diasDesdeEnvio, CRIT_LABEL[i.criticidade],
   ])
   const csv = '﻿' + [headers.map(esc).join(','), ...rows.map(r => r.map(esc).join(','))].join('\r\n')
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
@@ -183,9 +187,19 @@ const CSS = `
 .kctl-btn.ok { background: var(--ok); color: #fff; }
 .kctl-btn.primary:hover, .kctl-btn.ok:hover { filter: brightness(1.05); }
 .kctl-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Seleção (checkbox) + coluna Baixado */
+.kctl-table th.chk, .kctl-table td.chk { width: 38px; text-align: center; padding-left: 10px; padding-right: 6px; }
+.kctl-table input[type=checkbox] { width: 15px; height: 15px; cursor: pointer; accent-color: var(--blue); margin: 0; }
+.kctl-bx { display: inline-block; min-width: 46px; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; cursor: pointer; user-select: none; border: 1px solid transparent; }
+.kctl-bx.sim { background: #ecfdf5; color: var(--ok); border-color: #a7f3d0; }
+.kctl-bx.nao { background: #f1f5f9; color: #94a3b8; border-color: #e2e8f0; }
+.kctl-bx:hover { filter: brightness(.97); }
+.kctl-table tr.sel td { background: #eff6ff; }
+.kctl-table tr.sel:hover td { background: #e5efff; }
 `
 
-type SortCampo = 'diasDesdeEnvio' | 'diasParado' | null
+type SortCampo = 'diasDesdeEnvio' | null
 
 export default function ControlePage() {
   const router = useRouter()
@@ -197,6 +211,22 @@ export default function ControlePage() {
   const [etapa, setEtapa] = useState<number | null>(null)
   const [sort, setSort] = useState<{ campo: SortCampo; dir: 'asc' | 'desc' }>({ campo: null, dir: 'desc' })
   const [sucesso, setSucesso] = useState('')
+
+  // Seleção de linhas (para baixar) + controle de "Baixado" (persistido no navegador)
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
+  const [baixados, setBaixados] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    try { const raw = localStorage.getItem(LS_BAIXADOS); if (raw) setBaixados(new Set(JSON.parse(raw) as string[])) } catch { /* ignore */ }
+  }, [])
+  function salvarBaixados(s: Set<string>) {
+    try { localStorage.setItem(LS_BAIXADOS, JSON.stringify([...s])) } catch { /* ignore */ }
+  }
+  function toggleSel(k: string) {
+    setSelecionados(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n })
+  }
+  function toggleBaixado(k: string) {
+    setBaixados(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); salvarBaixados(n); return n })
+  }
 
   // Modal "Substituir rastreio"
   const [modalAberto, setModalAberto] = useState(false)
@@ -284,6 +314,26 @@ export default function ControlePage() {
   }
   const seta = (campo: Exclude<SortCampo, null>) => sort.campo === campo ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ''
 
+  // "Selecionar todos" opera sobre as linhas visíveis (após filtros)
+  const todosSel = linhas.length > 0 && linhas.every(i => selecionados.has(keyOf(i)))
+  function toggleTodos() {
+    setSelecionados(prev => {
+      const n = new Set(prev)
+      if (todosSel) linhas.forEach(i => n.delete(keyOf(i)))
+      else linhas.forEach(i => n.add(keyOf(i)))
+      return n
+    })
+  }
+  const selCount = useMemo(() => (itens ?? []).filter(i => selecionados.has(keyOf(i))).length, [itens, selecionados])
+
+  // Baixa só as linhas selecionadas e marca cada uma como "Baixado"
+  function baixarSelecionados() {
+    const sel = (itens ?? []).filter(i => selecionados.has(keyOf(i)))
+    if (!sel.length) return
+    baixarControle(sel)
+    setBaixados(prev => { const n = new Set(prev); sel.forEach(i => n.add(keyOf(i))); salvarBaixados(n); return n })
+  }
+
   return (
     <div className="kctl-root">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
@@ -349,18 +399,18 @@ export default function ControlePage() {
           </select>
           <input className="kctl-search" placeholder="🔍 Buscar cliente, invoice ou rastreio…" value={busca} onChange={e => setBusca(e.target.value)} />
           <button
-            onClick={() => baixarControle(linhas)}
-            disabled={!linhas.length}
-            title="Baixar planilha (abre no Excel)"
+            onClick={baixarSelecionados}
+            disabled={!selCount}
+            title={selCount ? `Baixar ${selCount} selecionada(s) — abre no Excel` : 'Marque as linhas que quer baixar'}
             style={{
               marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '7px',
               padding: '9px 15px', borderRadius: '10px', border: '1px solid #16a34a',
-              background: '#16a34a', color: '#fff', cursor: linhas.length ? 'pointer' : 'not-allowed',
-              opacity: linhas.length ? 1 : 0.5, fontFamily: 'inherit', fontSize: '13px', fontWeight: 700,
+              background: '#16a34a', color: '#fff', cursor: selCount ? 'pointer' : 'not-allowed',
+              opacity: selCount ? 1 : 0.5, fontFamily: 'inherit', fontSize: '13px', fontWeight: 700,
             }}
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            Baixar Excel
+            Baixar Excel{selCount ? ` (${selCount})` : ''}
           </button>
         </div>
 
@@ -370,6 +420,7 @@ export default function ControlePage() {
             <table className="kctl-table">
               <thead>
                 <tr>
+                  <th className="chk"><input type="checkbox" checked={todosSel} onChange={toggleTodos} title="Selecionar todos (visíveis)" /></th>
                   <th>Transp.</th>
                   <th>Rastreio</th>
                   <th>Invoice</th>
@@ -379,15 +430,19 @@ export default function ControlePage() {
                   <th>Etapa atual</th>
                   <th>Última mov.</th>
                   <th className="r sort" onClick={() => toggleSort('diasDesdeEnvio')}>Dias desde envio{seta('diasDesdeEnvio')}</th>
-                  <th className="r sort" onClick={() => toggleSort('diasParado')}>Dias parado{seta('diasParado')}</th>
+                  <th className="c">Baixado</th>
                   <th className="c">Criticidade</th>
                 </tr>
               </thead>
               <tbody>
                 {linhas.map((i, ix) => {
                   const cls = i.criticidade === 'critico' ? 'kctl-dias-crit' : i.criticidade === 'atencao' ? 'kctl-dias-aten' : ''
+                  const k = keyOf(i)
+                  const sel = selecionados.has(k)
+                  const bx = baixados.has(k)
                   return (
-                    <tr key={ix} className={i.criticidade === 'critico' ? 'crit' : ''}>
+                    <tr key={ix} className={`${i.criticidade === 'critico' ? 'crit' : ''} ${sel ? 'sel' : ''}`.trim()}>
+                      <td className="chk"><input type="checkbox" checked={sel} onChange={() => toggleSel(k)} /></td>
                       <td><span className={`kctl-tr ${i.transportadora === 'MILE' ? 'mile' : 'tristar'}`}>{i.transportadora === 'MILE' ? 'MILE' : 'TRISTAR'}</span></td>
                       <td className="mono">
                         {i.rastreio || '—'}
@@ -403,12 +458,12 @@ export default function ControlePage() {
                       <td>{i.etapa || '—'}</td>
                       <td className="mono">{fmtData(i.ultimaMovimentacao)}</td>
                       <td className="r"><span className={cls}>{fmtNum(i.diasDesdeEnvio)}</span></td>
-                      <td className="r"><span className={cls}>{fmtNum(i.diasParado)}</span></td>
+                      <td className="c"><span className={`kctl-bx ${bx ? 'sim' : 'nao'}`} onClick={() => toggleBaixado(k)} title="Clique para marcar/desmarcar como baixado">{bx ? 'SIM' : 'NÃO'}</span></td>
                       <td className="c"><span className={`kctl-crit ${i.criticidade}`}>{CRIT_LABEL[i.criticidade]}</span></td>
                     </tr>
                   )
                 })}
-                {linhas.length === 0 && <tr><td colSpan={11}><div className="kctl-empty">Nenhuma remessa com esses filtros.</div></td></tr>}
+                {linhas.length === 0 && <tr><td colSpan={12}><div className="kctl-empty">Nenhuma remessa com esses filtros.</div></td></tr>}
               </tbody>
             </table>
           </div>
