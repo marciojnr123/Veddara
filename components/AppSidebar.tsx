@@ -333,7 +333,7 @@ export function AppSidebar({ children, onLogout, hideLogo }: AppSidebarProps) {
   // Enquanto o cargo não carrega, escondemos as abas restritas (evita "piscar"
   // itens de admin para quem não é). Só aparecem quando confirmado role=admin.
   const navItems = me?.role === 'estoque'
-    ? NAV_ITEMS.filter(i => i.href === '/estoque')       // cargo estoque: só a aba Estoque
+    ? NAV_ITEMS.filter(i => i.href === '/estoque' || i.href === '/controle')  // cargo estoque: Estoque + Rastreio
     : NAV_ITEMS.filter(i => !ADMIN_ONLY.has(i.href) || me?.role === 'admin')
   const compact = !children
 

@@ -28,6 +28,8 @@ export function middleware(req: NextRequest) {
     const permitido =
       pathname.startsWith('/estoque') ||
       pathname.startsWith('/api/estoque') ||
+      pathname.startsWith('/controle') ||
+      pathname.startsWith('/api/controle') ||
       pathname.startsWith('/api/auth')
     if (!permitido) {
       if (pathname.startsWith('/api/')) {
