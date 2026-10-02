@@ -39,6 +39,12 @@ interface PreviewRastreio {
   transportadora_nova: string
 }
 
+// Telefone como "+<dígitos>" (ex: +5511981114342). Só dígitos + prefixo "+".
+function fmtTelefone(v: string): string {
+  const d = (v || '').replace(/\D/g, '')
+  return d ? '+' + d : ''
+}
+
 // Baixa as linhas informadas como planilha Excel (.xlsx) — abre direto no Excel.
 // A lib xlsx é carregada só aqui (import dinâmico) pra não pesar o carregamento da página.
 async function baixarControle(linhas: ControleItem[]) {
@@ -48,7 +54,7 @@ async function baixarControle(linhas: ControleItem[]) {
     'Rastreio': i.rastreio,
     'Invoice': i.invoice,
     'Cliente': i.cliente,
-    'Telefone': i.telefone,
+    'Telefone': fmtTelefone(i.telefone),
     'Data envio': fmtData(i.dataEnvio),
     'Etapa': i.etapa,
     'Última movimentação': fmtData(i.ultimaMovimentacao),
@@ -60,6 +66,19 @@ async function baixarControle(linhas: ControleItem[]) {
     { wch: 13 }, { wch: 20 }, { wch: 10 }, { wch: 28 }, { wch: 16 },
     { wch: 11 }, { wch: 22 }, { wch: 18 }, { wch: 10 }, { wch: 12 },
   ]
+  // Força a coluna "Telefone" como TEXTO (senão o Excel transforma em notação científica)
+  const range = XLSX.utils.decode_range(ws['!ref'] || 'A1')
+  let telCol = -1
+  for (let c = range.s.c; c <= range.e.c; c++) {
+    const h = ws[XLSX.utils.encode_cell({ r: range.s.r, c })]
+    if (h && String(h.v) === 'Telefone') { telCol = c; break }
+  }
+  if (telCol >= 0) {
+    for (let r = range.s.r + 1; r <= range.e.r; r++) {
+      const cell = ws[XLSX.utils.encode_cell({ r, c: telCol })]
+      if (cell && cell.v != null && cell.v !== '') { cell.t = 's'; cell.v = String(cell.v); cell.z = '@' }
+    }
+  }
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Controle Rastreio')
   XLSX.writeFile(wb, `controle-rastreio-${new Date().toISOString().slice(0, 10)}.xlsx`)
