@@ -233,7 +233,7 @@ const NAV_ITEMS = [
   },
   {
     href: '/controle',
-    label: 'Entregas',
+    label: 'Rastreio',
     icon: (
       <svg viewBox="0 0 24 24" fill="none">
         <path d="M1 3h13v13H1zM14 8h4l3 3v5h-7M5.5 19a2 2 0 100-4 2 2 0 000 4zM17.5 19a2 2 0 100-4 2 2 0 000 4z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>

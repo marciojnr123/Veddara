@@ -19,6 +19,8 @@ export interface ControleItem {
   diasDesdeEnvio: number
   diasParado: number
   criticidade: 'critico' | 'atencao' | 'ok'
+  rastreioAntigo: string | null      // preenchido quando o rastreio foi substituído
+  rastreioSubstituido: boolean
 }
 
 // Mesma API do estoque, path /controle. Usa ESTOQUE_CONTROLE_URL se existir; senão
@@ -70,6 +72,8 @@ export async function GET() {
       diasDesdeEnvio: n(r.dias_desde_envio),
       diasParado: n(r.dias_parado),
       criticidade: r.criticidade === 'critico' ? 'critico' : r.criticidade === 'atencao' ? 'atencao' : 'ok',
+      rastreioAntigo: r.rastreio_antigo == null ? null : String(r.rastreio_antigo),
+      rastreioSubstituido: r.rastreio_substituido === true,
     }))
     return NextResponse.json({ itens }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (e) {

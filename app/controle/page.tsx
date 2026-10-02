@@ -20,6 +20,21 @@ function fmtData(iso: string): string {
 
 const CRIT_LABEL: Record<'critico' | 'atencao' | 'ok', string> = { critico: 'Crítico', atencao: 'Atenção', ok: 'OK' }
 
+// Rastreio novo válido: MIE<dígitos> (Mile) ou TR<dígitos>BR (TriStar)
+function rastreioValido(v: string): boolean {
+  const up = v.trim().toUpperCase()
+  return /^MIE\d+$/.test(up) || /^TR\d+BR$/.test(up)
+}
+
+interface PreviewRastreio {
+  invoice: string
+  cliente: string
+  rastreio_atual: string
+  ja_substituido: boolean
+  rastreio_novo: string
+  transportadora_nova: string
+}
+
 // Baixa a tabela (respeitando os filtros aplicados) como CSV — abre direto no Excel.
 function baixarControle(linhas: ControleItem[]) {
   const esc = (v: unknown) => { const s = String(v ?? ''); return /[",\n\r;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s }
@@ -133,6 +148,41 @@ const CSS = `
 .kctl-empty { padding: 40px; text-align: center; color: var(--ink-3); font-size: 13.5px; }
 .kctl-sk { height: 300px; border-radius: 16px; background: linear-gradient(90deg,#f1f5f9,#f8fafc,#f1f5f9); background-size: 200% 100%; animation: kctlpulse 1.3s ease-in-out infinite; }
 @keyframes kctlpulse { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+/* Badge de rastreio substituído */
+.kctl-sub { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; vertical-align: middle; cursor: help; }
+.kctl-sub-old { font-size: 10px; color: #94a3b8; margin-top: 2px; }
+
+/* Botão "Substituir rastreio" no topo */
+.kctl-sub-btn { display: flex; align-items: center; gap: 7px; padding: 9px 15px; border-radius: 10px; border: 1px solid var(--blue); background: var(--blue); color: #fff; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 700; }
+.kctl-sub-btn:hover { filter: brightness(1.05); }
+
+/* Banner de sucesso */
+.kctl-ok-banner { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; font-size: 13px; padding: 10px 14px; border-radius: 12px; }
+
+/* Modal */
+.kctl-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.45); display: grid; place-items: center; z-index: 500; padding: 20px; }
+.kctl-modal { background: #fff; border-radius: 18px; width: 100%; max-width: 470px; padding: 22px 22px 20px; box-shadow: 0 20px 60px rgba(15,23,42,.3); }
+.kctl-modal h2 { font-size: 18px; font-weight: 800; margin: 0 0 4px; }
+.kctl-modal .sub { font-size: 12.5px; color: #64748b; margin-bottom: 16px; }
+.kctl-field { margin-bottom: 12px; }
+.kctl-field label { display: block; font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 5px; }
+.kctl-field .hint { font-weight: 500; color: #94a3b8; font-size: 11px; }
+.kctl-input { width: 100%; padding: 10px 12px; border: 1px solid #dbe2ea; border-radius: 10px; font-size: 13.5px; font-family: inherit; color: #1e293b; outline: none; }
+.kctl-input:focus { border-color: var(--blue); }
+.kctl-input.mono { font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+.kctl-modal-err { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; font-size: 12.5px; padding: 9px 12px; border-radius: 9px; margin-bottom: 12px; }
+.kctl-preview { background: #f8fafc; border: 1px solid var(--line); border-radius: 12px; padding: 14px; font-size: 13px; color: #334155; margin-bottom: 14px; line-height: 1.55; }
+.kctl-preview b { color: #1e293b; }
+.kctl-warn-ja { background: #fff7ed; color: #b45309; border: 1px solid #fed7aa; font-size: 12px; padding: 8px 10px; border-radius: 9px; margin-top: 10px; }
+.kctl-modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px; }
+.kctl-btn { padding: 10px 16px; border-radius: 10px; font-size: 13.5px; font-weight: 700; font-family: inherit; cursor: pointer; border: 1px solid transparent; }
+.kctl-btn.ghost { background: #fff; border-color: var(--line); color: #64748b; }
+.kctl-btn.ghost:hover { background: #f8fafc; }
+.kctl-btn.primary { background: var(--blue); color: #fff; }
+.kctl-btn.ok { background: var(--ok); color: #fff; }
+.kctl-btn.primary:hover, .kctl-btn.ok:hover { filter: brightness(1.05); }
+.kctl-btn:disabled { opacity: .5; cursor: not-allowed; }
 `
 
 type SortCampo = 'diasDesdeEnvio' | 'diasParado' | null
@@ -146,6 +196,16 @@ export default function ControlePage() {
   const [crit, setCrit] = useState<'' | ControleItem['criticidade']>('')
   const [etapa, setEtapa] = useState<number | null>(null)
   const [sort, setSort] = useState<{ campo: SortCampo; dir: 'asc' | 'desc' }>({ campo: null, dir: 'desc' })
+  const [sucesso, setSucesso] = useState('')
+
+  // Modal "Substituir rastreio"
+  const [modalAberto, setModalAberto] = useState(false)
+  const [fBusca, setFBusca] = useState('')
+  const [fRastreio, setFRastreio] = useState('')
+  const [fMotivo, setFMotivo] = useState('')
+  const [preview, setPreview] = useState<PreviewRastreio | null>(null)
+  const [enviando, setEnviando] = useState(false)
+  const [modalErro, setModalErro] = useState('')
 
   const carregar = useCallback(() => {
     setErro('')
@@ -155,6 +215,41 @@ export default function ControlePage() {
       .catch(e => { setErro(String(e)); setItens([]) })
   }, [router])
   useEffect(() => { carregar() }, [carregar])
+
+  function abrirModal() {
+    setFBusca(''); setFRastreio(''); setFMotivo(''); setPreview(null); setModalErro(''); setEnviando(false); setModalAberto(true)
+  }
+  function fecharModal() { setModalAberto(false); setEnviando(false) }
+
+  // Passo 1 (confirmar=false): dry-run → mostra o preview. Passo 2 (confirmar=true): aplica.
+  async function enviarRastreio(confirmar: boolean) {
+    setModalErro('')
+    const rastreioNovo = fRastreio.trim().toUpperCase()
+    if (!fBusca.trim()) { setModalErro('Informe o pedido (invoice ou rastreio antigo).'); return }
+    if (!rastreioValido(rastreioNovo)) { setModalErro('Rastreio novo inválido. Use o formato MIE… (Mile) ou TR…BR (TriStar).'); return }
+    setEnviando(true)
+    try {
+      const res = await fetch('/api/controle/rastreio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ busca: fBusca.trim(), rastreio_novo: rastreioNovo, motivo: fMotivo.trim(), confirmar }),
+      })
+      const d = await res.json().catch(() => ({ error: `Erro ${res.status}` }))
+      if (!res.ok || d.error) { setModalErro(String(d.error || `Erro ${res.status}`)); setEnviando(false); return }
+      if (!confirmar) {
+        setPreview((d.preview ?? null) as PreviewRastreio | null)
+        setEnviando(false)
+      } else {
+        const inv = d.aplicado?.invoice ?? preview?.invoice ?? fBusca.trim()
+        setModalAberto(false); setEnviando(false)
+        setSucesso(`Rastreio do pedido ${inv} substituído com sucesso.`)
+        carregar()
+        setTimeout(() => setSucesso(''), 7000)
+      }
+    } catch (e) {
+      setModalErro(e instanceof Error ? e.message : String(e)); setEnviando(false)
+    }
+  }
 
   // Contagem por etapa (para a faixa-resumo)
   const contagemEtapa = useMemo(() => {
@@ -197,15 +292,20 @@ export default function ControlePage() {
       <main className="kctl-main">
         <div className="kctl-top">
           <div className="kctl-brand"><VeddaraLogo height={70} /></div>
-          <h1 className="kctl-title"><em>Entregas</em></h1>
+          <h1 className="kctl-title"><em>Controle Rastreio</em></h1>
           <div className="kctl-right">
+            <button className="kctl-sub-btn" onClick={abrirModal} title="Substituir o rastreio de um pedido">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              Substituir rastreio
+            </button>
             <button className="kctl-refresh" title="Atualizar" aria-label="Atualizar" onClick={carregar}>
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
             </button>
           </div>
         </div>
 
-        {erro && <div className="kctl-tablewrap" style={{ padding: 16, color: '#dc2626', fontSize: 13 }}>Erro ao carregar entregas: {erro}</div>}
+        {erro && <div className="kctl-tablewrap" style={{ padding: 16, color: '#dc2626', fontSize: 13 }}>Erro ao carregar o controle de rastreio: {erro}</div>}
+        {sucesso && <div className="kctl-ok-banner">✅ {sucesso}</div>}
 
         {/* KPIs */}
         <div className="kctl-kpis">
@@ -289,7 +389,13 @@ export default function ControlePage() {
                   return (
                     <tr key={ix} className={i.criticidade === 'critico' ? 'crit' : ''}>
                       <td><span className={`kctl-tr ${i.transportadora === 'MILE' ? 'mile' : 'tristar'}`}>{i.transportadora === 'MILE' ? 'MILE' : 'TRISTAR'}</span></td>
-                      <td className="mono">{i.rastreio || '—'}</td>
+                      <td className="mono">
+                        {i.rastreio || '—'}
+                        {i.rastreioSubstituido && (
+                          <span className="kctl-sub" title={i.rastreioAntigo ? `Antes: ${i.rastreioAntigo}` : 'Rastreio substituído'}>substituído</span>
+                        )}
+                        {i.rastreioSubstituido && i.rastreioAntigo && <div className="kctl-sub-old">antes: {i.rastreioAntigo}</div>}
+                      </td>
                       <td className="mono">{i.invoice || '—'}</td>
                       <td className="cli">{i.cliente || '—'}</td>
                       <td className="mono">{i.telefone || '—'}</td>
@@ -312,6 +418,54 @@ export default function ControlePage() {
           Remessas <b>não entregues</b> das transportadoras Mile e TriStar. <b style={{ color: '#e11d48' }}>Crítico</b> = +20 dias desde o envio ou +10 dias parado na mesma etapa · <b style={{ color: '#ea580c' }}>Atenção</b> = 15/7 dias. &quot;Sem rastreio&quot; = registrada na transportadora, ainda sem evento de rastreio.
         </div>
       </main>
+
+      {/* Modal: substituir rastreio */}
+      {modalAberto && (
+        <div className="kctl-overlay" onClick={fecharModal}>
+          <div className="kctl-modal" onClick={e => e.stopPropagation()}>
+            <h2>Substituir rastreio</h2>
+            <div className="sub">Troque o rastreio de um pedido reenviado. O sistema passa a acompanhar o novo código.</div>
+
+            {modalErro && <div className="kctl-modal-err">{modalErro}</div>}
+
+            {!preview ? (
+              <>
+                <div className="kctl-field">
+                  <label>Pedido <span className="hint">— invoice (ex: 12060) ou rastreio antigo (ex: MIE4216…)</span></label>
+                  <input className="kctl-input mono" value={fBusca} onChange={e => setFBusca(e.target.value)} placeholder="12060 ou MIE421677856659855" autoFocus />
+                </div>
+                <div className="kctl-field">
+                  <label>Rastreio novo <span className="hint">— MIE… (Mile) ou TR…BR (TriStar)</span></label>
+                  <input className="kctl-input mono" value={fRastreio} onChange={e => setFRastreio(e.target.value)} placeholder="TR000163033BR" />
+                </div>
+                <div className="kctl-field">
+                  <label>Motivo <span className="hint">— opcional</span></label>
+                  <input className="kctl-input" value={fMotivo} onChange={e => setFMotivo(e.target.value)} placeholder="Ex: reenvio" />
+                </div>
+                <div className="kctl-modal-actions">
+                  <button className="kctl-btn ghost" onClick={fecharModal} disabled={enviando}>Cancelar</button>
+                  <button className="kctl-btn primary" onClick={() => enviarRastreio(false)} disabled={enviando}>{enviando ? 'Verificando…' : 'Continuar'}</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="kctl-preview">
+                  Pedido <b>{preview.invoice}</b>{preview.cliente ? <> de <b>{preview.cliente}</b></> : null}:<br />
+                  <b>{preview.rastreio_atual || '—'}</b> será substituído por <b>{preview.rastreio_novo}</b>
+                  {preview.transportadora_nova ? <> (<b>{preview.transportadora_nova}</b>)</> : null}.
+                  {preview.ja_substituido && (
+                    <div className="kctl-warn-ja">⚠️ Este pedido já teve o rastreio substituído antes — esta troca passa a ser a vigente.</div>
+                  )}
+                </div>
+                <div className="kctl-modal-actions">
+                  <button className="kctl-btn ghost" onClick={() => setPreview(null)} disabled={enviando}>Voltar</button>
+                  <button className="kctl-btn ok" onClick={() => enviarRastreio(true)} disabled={enviando}>{enviando ? 'Aplicando…' : 'Confirmar substituição'}</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
