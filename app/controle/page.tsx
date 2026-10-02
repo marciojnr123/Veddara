@@ -368,7 +368,10 @@ export default function ControlePage() {
     const sel = (itens ?? []).filter(i => selecionados.has(keyOf(i)))
     if (!sel.length) return
     await baixarControle(sel)
+    // Marca automaticamente tudo que foi baixado como "Baixado = SIM"…
     setBaixados(prev => { const n = new Set(prev); sel.forEach(i => n.add(keyOf(i))); salvarBaixados(n); return n })
+    // …e limpa a seleção, deixando claro que o lote já foi baixado.
+    setSelecionados(new Set())
   }
 
   return (
