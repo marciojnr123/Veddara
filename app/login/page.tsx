@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus_Jakarta_Sans } from 'next/font/google'
+import { limparCacheUsuario } from '@/components/AppSidebar'
 
 const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], weight: ['400', '500', '600', '700', '800'] })
 
@@ -136,6 +137,7 @@ export default function LoginPage() {
         setErro(data.error || 'Erro ao fazer login')
         return
       }
+      limparCacheUsuario()
       router.push('/dashboard')
     } catch {
       setErro('Erro de conexão')

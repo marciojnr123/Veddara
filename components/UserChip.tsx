@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { limparCacheUsuario } from '@/components/AppSidebar'
 
 const CHIP_CSS = `
 .vchip-wrap { position: relative; }
@@ -53,6 +54,7 @@ export function UserChip() {
   }, [])
 
   function logout() {
+    limparCacheUsuario()
     fetch('/api/auth/logout', { method: 'POST' }).then(() => router.push('/login'))
   }
 

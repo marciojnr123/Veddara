@@ -6,13 +6,22 @@ import { usePathname, useRouter } from 'next/navigation'
 
 interface MeUser { nome: string; email: string; role: string }
 
-function useMe(): MeUser | null {
-  const [me, setMe] = useState<MeUser | null>(null)
+// Usuário logado guardado na memória da aba do navegador: cada página monta o menu
+// de novo e, sem isso, ele "piscava" abas de outros cargos até a resposta chegar.
+// undefined = ainda não carregou. Só é preenchido no navegador (useEffect), nunca no servidor.
+let meCache: MeUser | null | undefined
+
+/** Esquece o usuário guardado (chamar ao sair e ao entrar com outro login). */
+export function limparCacheUsuario() { meCache = undefined }
+
+function useMe(): MeUser | null | undefined {
+  const [me, setMe] = useState<MeUser | null | undefined>(meCache)
   useEffect(() => {
+    if (meCache !== undefined) { setMe(meCache); return }
     fetch('/api/auth/me')
       .then(r => (r.ok ? r.json() : null))
-      .then(d => setMe(d?.user ?? null))
-      .catch(() => {})
+      .then(d => { meCache = d?.user ?? null; setMe(meCache) })
+      .catch(() => setMe(null))
   }, [])
   return me
 }
@@ -336,15 +345,18 @@ export function AppSidebar({ children, onLogout, hideLogo }: AppSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const me = useMe()
-  // Enquanto o cargo não carrega, escondemos as abas restritas (evita "piscar"
-  // itens de admin para quem não é). Só aparecem quando confirmado role=admin.
+  // Enquanto o cargo não carrega, o menu fica vazio: mostrar a lista padrão nesse
+  // meio-tempo fazia "piscar" abas que o cargo da pessoa não pode ver.
   const abasRestritas = me ? ABAS_POR_CARGO[me.role] : undefined
-  const navItems = abasRestritas
-    ? NAV_ITEMS.filter(i => abasRestritas.includes(i.href))   // cargos restritos: só as abas deles
-    : NAV_ITEMS.filter(i => !ADMIN_ONLY.has(i.href) || me?.role === 'admin')
+  const navItems = me === undefined
+    ? []
+    : abasRestritas
+      ? NAV_ITEMS.filter(i => abasRestritas.includes(i.href))   // cargos restritos: só as abas deles
+      : NAV_ITEMS.filter(i => !ADMIN_ONLY.has(i.href) || me?.role === 'admin')
   const compact = !children
 
   function handleLogout() {
+    limparCacheUsuario()
     if (onLogout) {
       onLogout()
       return
