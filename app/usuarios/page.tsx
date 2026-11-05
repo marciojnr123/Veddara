@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { AppSidebar } from '@/components/AppSidebar'
 
-const ROLES = ['admin', 'financeiro', 'consultor', 'operacao', 'user', 'estoque'] as const
+const ROLES = ['admin', 'financeiro', 'consultor', 'operacao', 'user', 'estoque', 'socio'] as const
 type Role = (typeof ROLES)[number]
 
 const ROLE_LABEL: Record<Role, string> = {
@@ -12,7 +12,8 @@ const ROLE_LABEL: Record<Role, string> = {
   consultor: 'Consultor',
   operacao: 'Operação',
   user: 'Usuário',
-  estoque: 'Estoque (só a aba)',
+  estoque: 'Estoque (Estoque + Rastreio)',
+  socio: 'Sócio (Comercial, Mercado, Vendedores, Estoque)',
 }
 const ROLE_COLOR: Record<Role, string> = {
   admin: '#6d28d9',
@@ -21,6 +22,7 @@ const ROLE_COLOR: Record<Role, string> = {
   operacao: '#b45309',
   user: '#475569',
   estoque: '#16a34a',
+  socio: '#be185d',
 }
 
 interface Usuario {

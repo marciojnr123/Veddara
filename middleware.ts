@@ -21,25 +21,33 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/login', req.url))
   }
 
-  // Cargo "estoque": só pode acessar a aba Estoque (e o que ela precisa).
+  // Cargos com acesso restrito: só as abas listadas (páginas + APIs delas).
   // Lê o cargo do payload do JWT (sem verificar assinatura — só p/ gating de rota;
   // a validação real da assinatura ocorre nas API routes via getSession).
-  if (rolePayload(token) === 'estoque') {
+  const restrito = ACESSO_RESTRITO[rolePayload(token) ?? '']
+  if (restrito) {
+    // arquivos estáticos do /public (logo, mapa do Mercado…) não são dados sensíveis
+    const arquivoEstatico = !pathname.startsWith('/api/') && /\.[a-z0-9]+$/i.test(pathname)
     const permitido =
-      pathname.startsWith('/estoque') ||
-      pathname.startsWith('/api/estoque') ||
-      pathname.startsWith('/controle') ||
-      pathname.startsWith('/api/controle') ||
-      pathname.startsWith('/api/auth')
+      arquivoEstatico ||
+      pathname.startsWith('/api/auth') ||
+      restrito.abas.some(a => pathname.startsWith(a) || pathname.startsWith(`/api${a}`))
     if (!permitido) {
       if (pathname.startsWith('/api/')) {
         return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
       }
-      return NextResponse.redirect(new URL('/estoque', req.url))
+      return NextResponse.redirect(new URL(restrito.abas[0], req.url))
     }
   }
 
   return NextResponse.next()
+}
+
+// Abas liberadas por cargo restrito (a primeira é a página inicial do cargo).
+// Os demais cargos seguem o menu normal.
+const ACESSO_RESTRITO: Record<string, { abas: string[] }> = {
+  estoque: { abas: ['/estoque', '/controle'] },
+  socio: { abas: ['/comercial', '/mercado', '/vendedores', '/estoque'] },
 }
 
 // Decodifica o payload do JWT (base64url) só para ler o cargo. Não valida assinatura.

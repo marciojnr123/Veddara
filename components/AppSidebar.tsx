@@ -326,14 +326,21 @@ interface AppSidebarProps {
 // Abas visíveis somente para admin
 const ADMIN_ONLY = new Set(['/dashboard', '/catalogo', '/usuarios'])
 
+// Cargos que veem só algumas abas (o bloqueio de rota fica no middleware.ts)
+const ABAS_POR_CARGO: Record<string, string[]> = {
+  estoque: ['/estoque', '/controle'],
+  socio: ['/comercial', '/mercado', '/vendedores', '/estoque'],
+}
+
 export function AppSidebar({ children, onLogout, hideLogo }: AppSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const me = useMe()
   // Enquanto o cargo não carrega, escondemos as abas restritas (evita "piscar"
   // itens de admin para quem não é). Só aparecem quando confirmado role=admin.
-  const navItems = me?.role === 'estoque'
-    ? NAV_ITEMS.filter(i => i.href === '/estoque' || i.href === '/controle')  // cargo estoque: Estoque + Rastreio
+  const abasRestritas = me ? ABAS_POR_CARGO[me.role] : undefined
+  const navItems = abasRestritas
+    ? NAV_ITEMS.filter(i => abasRestritas.includes(i.href))   // cargos restritos: só as abas deles
     : NAV_ITEMS.filter(i => !ADMIN_ONLY.has(i.href) || me?.role === 'admin')
   const compact = !children
 
