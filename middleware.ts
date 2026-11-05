@@ -5,7 +5,10 @@ const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/health']
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
-  if (PUBLIC_PATHS.some(p => pathname.startsWith(p))) {
+  // Arquivos estáticos do /public (logo, mapa do Mercado…) não são dados sensíveis:
+  // liberados para todos, inclusive na tela de login (antes de entrar).
+  const arquivoEstatico = !pathname.startsWith('/api/') && /\.[a-z0-9]+$/i.test(pathname)
+  if (arquivoEstatico || PUBLIC_PATHS.some(p => pathname.startsWith(p))) {
     return NextResponse.next()
   }
 
@@ -26,10 +29,7 @@ export function middleware(req: NextRequest) {
   // a validação real da assinatura ocorre nas API routes via getSession).
   const restrito = ACESSO_RESTRITO[rolePayload(token) ?? '']
   if (restrito) {
-    // arquivos estáticos do /public (logo, mapa do Mercado…) não são dados sensíveis
-    const arquivoEstatico = !pathname.startsWith('/api/') && /\.[a-z0-9]+$/i.test(pathname)
     const permitido =
-      arquivoEstatico ||
       pathname.startsWith('/api/auth') ||
       restrito.abas.some(a => pathname.startsWith(a) || pathname.startsWith(`/api${a}`))
     if (!permitido) {
