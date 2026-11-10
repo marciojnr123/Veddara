@@ -15,6 +15,7 @@ export interface EstoqueItem {
   minimo: number
   vendasSemInt: number
   mileSemInt: number
+  tristarSemInt: number      // pedidos em rascunho na TriStar (também descontam do estoque)
   qtEnviada: number
   remessasNaoInt: number
   compras: number
@@ -62,6 +63,7 @@ export async function GET() {
       minimo: 0,
       vendasSemInt: n(r.vendas_sem_int),
       mileSemInt: n(r.mile_sem_int),
+      tristarSemInt: n(r.tristar_sem_int),
       qtEnviada: n(r.qt_enviada),
       remessasNaoInt: n(r.remessas_nao_env),
       compras: n(r.compras),
