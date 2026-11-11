@@ -35,6 +35,7 @@ PROIBIDO — NUNCA FAÇA ISSO:
 ✗ Fazer mais de 3 queries por resposta
 ✗ Responder sem interpretar os dados (não liste só os resultados — analise)
 ✗ Usar LIMIT (Sybase IQ usa TOP N)
+✗ Usar TOP dentro de subconsulta ou tabela derivada (FROM (SELECT TOP ...)) — o Sybase recusa; use TOP só no SELECT externo
 ✗ Usar UPPER() ou LOWER() para comparar strings
 ✗ Consultar tabelas sem o prefixo veddara.
 
@@ -82,6 +83,19 @@ ${schemaContext}
 ══════════════════════════════════════════`
 }
 
+const AVISO_LIMITE = 'Limite de consultas atingido. Responda agora com os dados que você já tem, no formato pedido (insights + tabela).'
+
+// Junta o aviso de limite à última mensagem (a que traz os resultados das consultas),
+// em vez de criar uma mensagem nova seguida do mesmo lado da conversa.
+function comAvisoDeLimite(msgs: Anthropic.MessageParam[]): Anthropic.MessageParam[] {
+  const aviso: Anthropic.TextBlockParam = { type: 'text', text: AVISO_LIMITE }
+  const ultimo = msgs[msgs.length - 1]
+  if (ultimo?.role === 'user' && Array.isArray(ultimo.content)) {
+    return [...msgs.slice(0, -1), { role: 'user', content: [...ultimo.content, aviso] }]
+  }
+  return [...msgs, { role: 'user', content: [aviso] }]
+}
+
 export async function POST(req: NextRequest) {
   const session = getSession()
   if (!session) return new Response('Não autenticado', { status: 401 })
@@ -92,9 +106,19 @@ export async function POST(req: NextRequest) {
   const stream = new TransformStream()
   const writer = stream.writable.getWriter()
 
+  let fechado = false
   async function send(payload: object) {
+    if (fechado) return
     await writer.write(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`))
   }
+
+  // Sinal de vida a cada 10 s: enquanto a IA escreve a resposta final (a parte mais
+  // demorada), nada era enviado e a conexão podia ser cortada no caminho
+  // (Railway/Cloudflare) — a tela ficava só com as queries, sem resposta e sem erro.
+  // Linhas começando com ":" são comentários do SSE; a tela ignora.
+  const heartbeat = setInterval(() => {
+    if (!fechado) writer.write(encoder.encode(': ping\n\n')).catch(() => {})
+  }, 10_000)
 
   async function run() {
     try {
@@ -103,24 +127,39 @@ export async function POST(req: NextRequest) {
       const catalogContext = catalog ? catalogToPromptContext(catalog) : ''
       const systemPrompt = buildSystemPrompt(schemaContext, catalogContext)
 
-      const msgs: Anthropic.MessageParam[] = [...messages]
-      let queryCount = 0
+      // Resposta anterior que ficou vazia (ex.: conexão caiu antes do texto) seria recusada pela API
+      const msgs: Anthropic.MessageParam[] = (messages as Anthropic.MessageParam[]).map(m =>
+        typeof m.content === 'string' && !m.content.trim() ? { ...m, content: '(sem resposta)' } : m)
+      let queryCount = 0          // só queries que deram certo (erro de sintaxe não gasta o limite)
       const MAX_QUERIES = 3
+      let jaEscreveu = false      // pra separar o texto de cada etapa com uma linha em branco
+      let terminou = false
+      let usarToolChoiceNone = true  // se a API recusar a opção, segue sem ela (o servidor já barra consultas extras)
 
       for (let turn = 0; turn < 8; turn++) {
         let response: Anthropic.Message | null = null
+        const limiteAtingido = queryCount >= MAX_QUERIES
         for (let attempt = 0; attempt < 4; attempt++) {
           try {
             response = await client.messages.create({
               model: 'claude-haiku-4-5-20251001',
               max_tokens: 4096,
               system: systemPrompt,
-              tools: queryCount >= MAX_QUERIES ? [] : TOOLS,
-              messages: msgs,
+              // As ferramentas continuam declaradas (o histórico tem consultas, e a API recusa
+              // histórico com consultas sem ferramenta). No limite, só proíbe novas consultas.
+              tools: TOOLS,
+              ...(limiteAtingido && usarToolChoiceNone
+                ? { tool_choice: { type: 'none' } as unknown as Anthropic.MessageCreateParams['tool_choice'] }
+                : {}),
+              messages: limiteAtingido ? comAvisoDeLimite(msgs) : msgs,
             })
             break
           } catch (err: unknown) {
             const status = (err as { status?: number }).status
+            if (status === 400 && limiteAtingido && usarToolChoiceNone) {
+              usarToolChoiceNone = false
+              continue
+            }
             if (status === 529 && attempt < 3) {
               const wait = (attempt + 1) * 8000
               await send({ type: 'text', text: `_(API sobrecarregada, tentando novamente em ${wait / 1000}s…)_\n` })
@@ -132,13 +171,23 @@ export async function POST(req: NextRequest) {
         }
         if (!response) throw new Error('Falha após 4 tentativas (API overloaded)')
 
+        let primeiroDaEtapa = true
         for (const block of response.content) {
           if (block.type === 'text' && block.text) {
-            await send({ type: 'text', text: block.text })
+            const separador = jaEscreveu && primeiroDaEtapa ? '\n\n' : ''
+            await send({ type: 'text', text: separador + block.text })
+            jaEscreveu = true
+            primeiroDaEtapa = false
           }
         }
 
-        if (response.stop_reason === 'end_turn') break
+        if (response.stop_reason === 'end_turn' || response.stop_reason === 'stop_sequence') { terminou = true; break }
+
+        if (response.stop_reason === 'max_tokens') {
+          await send({ type: 'text', text: '\n\n_(A resposta ficou longa demais e foi cortada. Peça um recorte menor, por exemplo um período ou um produto específico.)_' })
+          terminou = true
+          break
+        }
 
         if (response.stop_reason === 'tool_use') {
           msgs.push({ role: 'assistant', content: response.content })
@@ -147,7 +196,11 @@ export async function POST(req: NextRequest) {
           for (const block of response.content) {
             if (block.type !== 'tool_use' || block.name !== 'executar_query') continue
 
-            queryCount++
+            if (queryCount >= MAX_QUERIES) {
+              toolResults.push({ type: 'tool_result', tool_use_id: block.id, is_error: true, content: AVISO_LIMITE })
+              continue
+            }
+
             const input = block.input as { sql: string; limit?: number }
 
             await send({ type: 'tool_start', name: 'executar_query', sql: input.sql })
@@ -155,6 +208,7 @@ export async function POST(req: NextRequest) {
             let resultContent: string
             try {
               const result = await agentQuery(input.sql, input.limit ?? 200)
+              queryCount++
               resultContent = JSON.stringify(result)
               await send({ type: 'tool_end', name: 'executar_query', rows: result.count })
             } catch (e) {
@@ -170,17 +224,26 @@ export async function POST(req: NextRequest) {
           }
 
           msgs.push({ role: 'user', content: toolResults })
+        } else {
+          terminou = true
+          break
         }
+      }
+
+      if (!terminou) {
+        await send({ type: 'text', text: '\n\n_(Não consegui concluir a análise desta vez. Tente reformular a pergunta de forma mais específica.)_' })
       }
     } catch (e) {
       await send({ type: 'error', text: `Erro: ${String(e)}` })
     } finally {
+      clearInterval(heartbeat)
       await send({ type: 'done' })
-      await writer.close()
+      fechado = true
+      await writer.close().catch(() => {})
     }
   }
 
-  run()
+  run().catch(() => { /* conexão encerrada pelo navegador */ })
 
   return new Response(stream.readable, {
     headers: {
